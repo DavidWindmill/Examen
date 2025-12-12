@@ -1,66 +1,27 @@
-import os, datetime, requests
-from fastapi import FastAPI, Depends, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pymongo import MongoClient
-from firebase_admin import auth
+from fastapi import FastAPI, Depends
+from fastapi.staticfiles import StaticFiles
 
-app = FastAPI()
-bearer = HTTPBearer()
+from app.routes.rutas_frontend import router as rutas_frontend
+from app.routes.rutas_locations import router as rutas_locations
+from app.database import init_db
+from app.auth import current_user
 
-mongo = MongoClient(os.environ["MONGO_URI"])
-db = mongo["travel_map"]
-markers_col = db["markers"]
+app = FastAPI(title="Mapa de viajes", version="1.0.0")
 
-def current_user(creds: HTTPAuthorizationCredentials = Depends(bearer)):
-    try:
-        decoded = auth.verify_id_token(creds.credentials)
-        email = decoded.get("email")
-        if not email:
-            raise HTTPException(401, "Token sin email")
-        return {"email": email}
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Token inválido: {e}")
+# Static (para /static/...)
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
-@app.get("/api/markers")
-def get_markers(user=Depends(current_user)):
-    email = user["email"]
-    docs = list(markers_col.find({"email": email}, {"email": 0}))
-    for d in docs:
-        d["_id"] = str(d["_id"])
-    return docs
+# Frontend (ruta /)
+app.include_router(rutas_frontend)
+app.include_router(rutas_locations)
 
-@app.post("/api/markers")
-def add_marker(payload: dict, user=Depends(current_user)):
-    place = (payload.get("place") or "").strip()
-    if not place:
-        raise HTTPException(400, "Falta 'place'")
+@app.get("/api/me")
+def me(user=Depends(current_user)):
+    return {"uid": user["uid"], "email": user.get("email"), "name": user.get("name")}
 
-    # Nominatim geocoding
-    r = requests.get(
-        "https://nominatim.openstreetmap.org/search",
-        params={"q": place, "format": "json", "limit": 1},
-        headers={"User-Agent": "travel-map-david/1.0 (contact: you@example.com)"},
-        timeout=10,
-    )
-    data = r.json()
-    if not data:
-        raise HTTPException(404, "No se encontró el lugar")
 
-    lat = float(data[0]["lat"])
-    lon = float(data[0]["lon"])
-    label = data[0].get("display_name", place)
-
-    doc = {
-        "email": user["email"],
-        "label": label,
-        "query": place,
-        "lat": lat,
-        "lon": lon,
-        "createdAt": datetime.datetime.utcnow().isoformat() + "Z",
-    }
-    res = markers_col.insert_one(doc)
-    doc["_id"] = str(res.inserted_id)
-    doc.pop("email", None)
-    return doc
-
+@app.on_event("startup")
+async def _startup():
+    # Inicializa Beanie + MongoDB usando MONGO_URI (Vercel env)
+    await init_db()
 

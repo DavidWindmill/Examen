@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Mapa</title>
 
+  <!-- Leaflet (OpenStreetMap) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
   <style>
     header {
       display: flex;
@@ -36,6 +40,21 @@
     #btnLogout { display: none; }
     main { padding: 16px; }
     #status { font-size: 14px; opacity: .8; }
+    #map { height: 520px; border-radius: 16px; border: 1px solid #e6e6e6; }
+    .panel {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin: 12px 0 16px;
+    }
+    input {
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      min-width: 260px;
+    }
+    .hint { font-size: 13px; opacity: 0.8; }
   </style>
 
   <!-- Firebase Auth + UI -->
@@ -66,12 +85,99 @@
 
     const $ = (id) => document.getElementById(id);
 
+    let map;
+    let markersLayer;
+
     async function callBackendMe(idToken) {
-      // Ajusta si tu endpoint es distinto
       const res = await fetch("/api/me", {
         headers: { Authorization: `Bearer ${idToken}` }
       });
       return res.json();
+    }
+
+    async function apiFetch(path, options = {}) {
+      const token = localStorage.getItem("token");
+      if (!token) throw new Error("No hay token");
+
+      const headers = {
+        ...(options.headers || {}),
+        Authorization: `Bearer ${token}`
+      };
+
+      return fetch(path, { ...options, headers });
+    }
+
+    function ensureMap() {
+      if (map) return;
+
+      map = L.map('map').setView([20, 0], 2);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+      }).addTo(map);
+
+      markersLayer = L.layerGroup().addTo(map);
+    }
+
+    async function refreshMarkers() {
+      ensureMap();
+      markersLayer.clearLayers();
+
+      const res = await apiFetch("/api/locations");
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt);
+      }
+
+      const data = await res.json();
+      const bounds = [];
+
+      data.forEach(loc => {
+        bounds.push([loc.lat, loc.lon]);
+        const m = L.marker([loc.lat, loc.lon]).addTo(markersLayer);
+        m.bindPopup(
+          `<b>${escapeHtml(loc.name)}</b><br/><button data-del="${loc._id}">Eliminar</button>`
+        );
+
+        m.on("popupopen", (e) => {
+          const btn = e.popup.getElement()?.querySelector("button[data-del]");
+          if (!btn) return;
+          btn.addEventListener("click", async () => {
+            try {
+              await apiFetch(`/api/locations/${btn.getAttribute("data-del")}`, { method: "DELETE" });
+              await refreshMarkers();
+            } catch (err) {
+              console.error(err);
+              alert("No se pudo eliminar el marcador");
+            }
+          });
+        });
+      });
+
+      if (bounds.length) {
+        map.fitBounds(bounds, { padding: [30, 30] });
+      }
+    }
+
+    async function addPlace(place) {
+      const res = await apiFetch("/api/locations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ place })
+      });
+
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt);
+      }
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
     }
 
     async function renderUser(user) {
@@ -82,6 +188,7 @@
       const btnLogout = $("btnLogout");
 
       if (!user) {
+        localStorage.removeItem("token");
         avatar.style.display = "none";
         avatar.src = "";
         name.textContent = "No autenticado";
@@ -99,8 +206,12 @@
 
       try {
         const idToken = await user.getIdToken();
+        localStorage.setItem("token", idToken);
         const me = await callBackendMe(idToken);
         status.textContent = `Backend OK: UID=${me.uid || "?"} Email=${me.email || "?"}`;
+
+        // Cargar mapa y marcadores del usuario
+        await refreshMarkers();
       } catch (e) {
         console.error(e);
         status.textContent = "Backend: no se pudo verificar el token (revisa /api/me y Firebase Admin).";
@@ -120,8 +231,26 @@
       $("btnLogout").addEventListener("click", async () => {
         try {
           await signOut(auth);
+          localStorage.removeItem("token");
         } catch (e) {
           console.error("Logout error:", e);
+        }
+      });
+
+      $("btnAdd").addEventListener("click", async () => {
+        const input = $("place");
+        const place = (input.value || "").trim();
+        if (!place) return;
+
+        try {
+          $("formStatus").textContent = "Buscando coordenadas y guardando...";
+          await addPlace(place);
+          input.value = "";
+          await refreshMarkers();
+          $("formStatus").textContent = "Marcador añadido.";
+        } catch (e) {
+          console.error(e);
+          $("formStatus").textContent = "No se pudo añadir (revisa el nombre o el backend).";
         }
       });
 
@@ -147,9 +276,12 @@
   <main>
     <h1>Mapa</h1>
 
-    <!-- Tu contenido actual aquí -->
-    <!-- Ejemplo de recurso estático en FastAPI: -->
-    <!-- <img src="/static/tu_imagen.png" alt="..." /> -->
+    <div class="panel">
+      <input id="place" placeholder="Añade país o ciudad (ej: Japón, Madrid, Kyoto...)" />
+      <button id="btnAdd">Añadir marcador</button>
+      <div class="hint">(Necesitas estar logueado para guardar y ver tus marcadores)</div>
+      <div id="formStatus" class="hint"></div>
+    </div>
 
     <div id="map"></div>
   </main>
