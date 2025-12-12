@@ -1,3 +1,8 @@
+import logging
+from fastapi import FastAPI
+from contextlib import asynccontextmanager
+from app.database import init_db
+
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
@@ -10,9 +15,16 @@ from app.routes.rutas_locations import router as rutas_locations
 
 app = FastAPI()
 
+logger = logging.getLogger(__name__)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_db()
+    try:
+        await init_db()
+        logger.info("✅ Mongo/Beanie inicializado")
+    except Exception:
+        logger.exception("❌ Falló init_db()")
+        raise
     yield
 
 app = FastAPI(lifespan=lifespan)
