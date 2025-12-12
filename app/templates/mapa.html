@@ -1,11 +1,157 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <title>Mi primera página</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mapa</title>
+
+  <style>
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid #e6e6e6;
+    }
+    .user {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-right: 6px;
+    }
+    #userAvatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      display: none;
+    }
+    button {
+      cursor: pointer;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      background: white;
+    }
+    #btnLogout { display: none; }
+    main { padding: 16px; }
+    #status { font-size: 14px; opacity: .8; }
+  </style>
+
+  <!-- Firebase Auth + UI -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+    import {
+      getAuth,
+      GoogleAuthProvider,
+      signInWithPopup,
+      onAuthStateChanged,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+
+    // ✅ Tu firebaseConfig (frontend). ApiKey pública OK.
+    const firebaseConfig = {
+      apiKey: "AIzaSyBXe0ayyeP0XbOuJsf7HeHNP7bxiJMc4oo",
+      authDomain: "examen-6569c.firebaseapp.com",
+      projectId: "examen-6569c",
+      storageBucket: "examen-6569c.firebasestorage.app",
+      messagingSenderId: "805253871320",
+      appId: "1:805253871320:web:5153beecec7b93f14e49ad",
+      measurementId: "G-MYQ235TXFC"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const provider = new GoogleAuthProvider();
+
+    const $ = (id) => document.getElementById(id);
+
+    async function callBackendMe(idToken) {
+      // Ajusta si tu endpoint es distinto
+      const res = await fetch("/api/me", {
+        headers: { Authorization: `Bearer ${idToken}` }
+      });
+      return res.json();
+    }
+
+    async function renderUser(user) {
+      const avatar = $("userAvatar");
+      const name = $("userName");
+      const status = $("status");
+      const btnLogin = $("btnLogin");
+      const btnLogout = $("btnLogout");
+
+      if (!user) {
+        avatar.style.display = "none";
+        avatar.src = "";
+        name.textContent = "No autenticado";
+        status.textContent = "";
+        btnLogin.style.display = "inline-flex";
+        btnLogout.style.display = "none";
+        return;
+      }
+
+      avatar.style.display = "inline-block";
+      avatar.src = user.photoURL || "";
+      name.textContent = user.displayName || user.email || "Usuario";
+      btnLogin.style.display = "none";
+      btnLogout.style.display = "inline-flex";
+
+      try {
+        const idToken = await user.getIdToken();
+        const me = await callBackendMe(idToken);
+        status.textContent = `Backend OK: UID=${me.uid || "?"} Email=${me.email || "?"}`;
+      } catch (e) {
+        console.error(e);
+        status.textContent = "Backend: no se pudo verificar el token (revisa /api/me y Firebase Admin).";
+      }
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      $("btnLogin").addEventListener("click", async () => {
+        try {
+          await signInWithPopup(auth, provider);
+        } catch (e) {
+          console.error("Login error:", e);
+          alert("Error al iniciar sesión con Google. Revisa Authorized domains en Firebase.");
+        }
+      });
+
+      $("btnLogout").addEventListener("click", async () => {
+        try {
+          await signOut(auth);
+        } catch (e) {
+          console.error("Logout error:", e);
+        }
+      });
+
+      onAuthStateChanged(auth, renderUser);
+    });
+  </script>
 </head>
+
 <body>
-    <h1>Hola, mundo</h1>
-    <p>Este es un HTML muy básico.</p>
+  <header>
+    <div class="user">
+      <img id="userAvatar" alt="avatar" />
+      <div>
+        <div id="userName">No autenticado</div>
+        <div id="status"></div>
+      </div>
+    </div>
+
+    <button id="btnLogin">Entrar con Google</button>
+    <button id="btnLogout">Salir</button>
+  </header>
+
+  <main>
+    <h1>Mapa</h1>
+
+    <!-- Tu contenido actual aquí -->
+    <!-- Ejemplo de recurso estático en FastAPI: -->
+    <!-- <img src="/static/tu_imagen.png" alt="..." /> -->
+
+    <div id="map"></div>
+  </main>
 </body>
 </html>

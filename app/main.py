@@ -1,18 +1,17 @@
-from pathlib import Path
-import sys
+from fastapi import FastAPI, Depends, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from app.firebase_admin import verify_id_token
 
-BASE_DIR = Path(__file__).resolve().parent
-sys.path.insert(0, str(BASE_DIR))  # <- añade /app al path
+app = FastAPI()
+bearer = HTTPBearer()
 
-from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+def current_user(creds: HTTPAuthorizationCredentials = Depends(bearer)):
+    try:
+        return verify_id_token(creds.credentials)
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Token inválido: {e}")
 
-from routes.rutas_frontend import router as rutas_frontend
+@app.get("/api/me")
+def me(user=Depends(current_user)):
+    return {"uid": user["uid"], "email": user.get("email"), "name": user.get("name")}
 
-app = FastAPI(title="Kalendas API Gateway", version="1.0.0")
-
-app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
-
-app.include_router(rutas_frontend)
