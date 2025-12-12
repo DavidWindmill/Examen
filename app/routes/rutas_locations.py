@@ -1,56 +1,66 @@
-from beanie import PydanticObjectId
-from fastapi import APIRouter, Depends, HTTPException, Request, Form, UploadFile, File
-from pydantic import BaseModel, Field
+from __future__ import annotations
 
-from uuid import uuid4
 import os
+from uuid import uuid4
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 
 from app.auth import current_user
 from app.models_locations import Location
 from app.services.geocoding import geocode
-
-from app.services.dropbox_service import delete_dropbox_path
+from app.services.dropbox_service import (
+    upload_image_bytes,
+    delete_dropbox_path,
+    DROPBOX_BASE_FOLDER,
+)
 
 router = APIRouter(prefix="/api", tags=["locations"])
 
 
-class AddLocationRequest(BaseModel):
-    place: str = Field(..., min_length=1, description="País o ciudad a geocodificar")
-
-
-@router.get("/locations")
-async def get_locations(user=Depends(current_user)):
-    """Devuelve los marcadores del usuario autenticado (por email)."""
-    email = user.get("email")
-    if not email:
-        raise HTTPException(status_code=400, detail="El token no incluye email")
-
-    return await Location.find(Location.email == email).to_list()
-
-
 @router.post("/locations")
 async def create_location(
-    request: Request,
     place: str = Form(...),
-    image: UploadFile | None = File(None),
+    image: Optional[UploadFile] = File(None),
+    user: dict = Depends(current_user),
 ):
-    # aquí asumo que tú ya sacas el email del token en tu dependencia/middleware
-    # Ejemplo: email = request.state.user_email
-    email = request.state.email  # ajusta esto a tu implementación real
+    # 1) Email del usuario autenticado (no request.state.email)
+    email = (user or {}).get("email")
+    if not email:
+        raise HTTPException(status_code=401, detail="No autorizado (token sin email)")
 
-    # 1) geocodificar "place" como ya haces ahora
-    # debe devolverte name/lat/lon (lon)
-    name, lat, lon = await geocode_place(place)  # <- usa tu función actual
+    place_clean = place.strip()
+    if not place_clean:
+        raise HTTPException(status_code=400, detail="El campo 'place' está vacío")
 
-    loc = Location(email=email, name=name, lat=lat, lon=lon)
+    # 2) Geocoding: tu servicio se llama geocode(place) y devuelve (lat, lon) o None
+    coords = await geocode(place_clean)
+    if not coords:
+        raise HTTPException(status_code=400, detail="No se pudo geocodificar el lugar")
 
-    # 2) imagen opcional
-    if image:
+    lat, lon = coords
+
+    loc = Location(
+        email=email,
+        name=place_clean,
+        lat=lat,
+        lon=lon,
+    )
+
+    # 3) Imagen opcional a Dropbox
+    if image is not None:
         if not image.content_type or not image.content_type.startswith("image/"):
-            raise HTTPException(400, "El archivo debe ser una imagen")
+            raise HTTPException(status_code=400, detail="El archivo debe ser una imagen")
 
         content = await image.read()
-        ext = os.path.splitext(image.filename or "")[1].lower() or ".jpg"
+        if not content:
+            raise HTTPException(status_code=400, detail="La imagen está vacía")
+
+        ext = os.path.splitext(image.filename or "")[1].lower()
+        if ext not in (".jpg", ".jpeg", ".png", ".webp"):
+            # si no trae extensión buena, usa jpg por defecto
+            ext = ".jpg"
+
         dropbox_path = f"{DROPBOX_BASE_FOLDER}/locations/{email}/{uuid4().hex}{ext}"
 
         public_url, saved_path = await upload_image_bytes(content, dropbox_path)
@@ -62,13 +72,20 @@ async def create_location(
 
 
 @router.delete("/locations/{location_id}")
-async def delete_location(location_id: str, request: Request):
-    email = request.state.email  # ajusta
+async def delete_location(
+    location_id: str,
+    user: dict = Depends(current_user),
+):
+    email = (user or {}).get("email")
+    if not email:
+        raise HTTPException(status_code=401, detail="No autorizado")
+
     loc = await Location.get(location_id)
     if not loc or loc.email != email:
-        raise HTTPException(404, "No encontrado")
+        raise HTTPException(status_code=404, detail="Location no encontrada")
 
-    if loc.image_path:
+    if getattr(loc, "image_path", None):
+        # si existe en dropbox, intenta borrar
         await delete_dropbox_path(loc.image_path)
 
     await loc.delete()

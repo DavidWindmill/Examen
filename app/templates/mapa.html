@@ -96,12 +96,14 @@
     }
 
     async function apiFetch(path, options = {}) {
-      const token = localStorage.getItem("token");
-      if (!token) throw new Error("No hay token");
+      const user = auth.currentUser;
+      if (!user) throw new Error("No autenticado");
+
+      const token = await user.getIdToken(); // token fresco
 
       const headers = {
         ...(options.headers || {}),
-        Authorization: `Bearer ${token}`
+        Authorization: `Bearer ${token}`,
       };
 
       return fetch(path, { ...options, headers });
@@ -201,11 +203,19 @@
         body: fd
       });
 
+      const contentType = res.headers.get("content-type") || "";
+      const body = contentType.includes("application/json")
+        ? await res.json()
+        : await res.text();
+
       if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(txt);
+        // esto te enseña EXACTAMENTE qué está devolviendo FastAPI
+        throw new Error(`POST /api/locations -> ${res.status}\n${typeof body === "string" ? body : JSON.stringify(body)}`);
       }
+
+      return body;
     }
+
 
     function escapeHtml(str) {
       return String(str)
@@ -290,7 +300,8 @@
           $("formStatus").textContent = "Marcador añadido.";
         } catch (e) {
           console.error(e);
-          $("formStatus").textContent = "No se pudo añadir.";
+          $("formStatus").textContent = e?.message || String(e);
+          alert(e?.message || String(e));
         }
       });
 
