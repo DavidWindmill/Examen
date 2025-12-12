@@ -134,8 +134,18 @@
       data.forEach(loc => {
         bounds.push([loc.lat, loc.lon]);
         const m = L.marker([loc.lat, loc.lon]).addTo(markersLayer);
+
+        const imgHtml = loc.image_url
+          ? `<br/>
+            <img src="${escapeHtml(loc.image_url)}"
+                  style="width:180px;max-width:100%;border-radius:12px;margin-top:8px;" />`
+          : "";
+
         m.bindPopup(
-          `<b>${escapeHtml(loc.name)}</b><br/><button data-del="${loc._id}">Eliminar</button>`
+          `<b>${escapeHtml(loc.name)}</b>
+          ${imgHtml}
+          <br/>
+          <button data-del="${loc._id}">Eliminar</button>`
         );
 
         m.on("popupopen", (e) => {
@@ -143,7 +153,9 @@
           if (!btn) return;
           btn.addEventListener("click", async () => {
             try {
-              await apiFetch(`/api/locations/${btn.getAttribute("data-del")}`, { method: "DELETE" });
+              await apiFetch(`/api/locations/${btn.getAttribute("data-del")}`, {
+                method: "DELETE"
+              });
               await refreshMarkers();
             } catch (err) {
               console.error(err);
@@ -156,13 +168,37 @@
       if (bounds.length) {
         map.fitBounds(bounds, { padding: [30, 30] });
       }
+
+      renderGallery(data);
     }
 
-    async function addPlace(place) {
+    function renderGallery(locations) {
+      const g = document.getElementById("gallery");
+      if (!g) return;
+
+      g.innerHTML = "";
+
+      locations
+        .filter(l => l.image_url)
+        .forEach(l => {
+          const img = document.createElement("img");
+          img.src = l.image_url;
+          img.alt = l.name;
+          img.style.height = "110px";
+          img.style.borderRadius = "12px";
+          img.style.border = "1px solid #e6e6e6";
+          g.appendChild(img);
+        });
+    }
+
+    async function addPlace(place, file) {
+      const fd = new FormData();
+      fd.append("place", place);
+      if (file) fd.append("image", file);
+
       const res = await apiFetch("/api/locations", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ place })
+        body: fd
       });
 
       if (!res.ok) {
@@ -242,17 +278,22 @@
         const place = (input.value || "").trim();
         if (!place) return;
 
+        const fileInput = $("imageFile");
+        const file = fileInput?.files?.[0] || null;
+
         try {
-          $("formStatus").textContent = "Buscando coordenadas y guardando...";
-          await addPlace(place);
+          $("formStatus").textContent = "Guardando marcador e imagen...";
+          await addPlace(place, file);
           input.value = "";
+          if (fileInput) fileInput.value = ""; // limpia el input
           await refreshMarkers();
           $("formStatus").textContent = "Marcador añadido.";
         } catch (e) {
           console.error(e);
-          $("formStatus").textContent = "No se pudo añadir (revisa el nombre o el backend).";
+          $("formStatus").textContent = "No se pudo añadir.";
         }
       });
+
 
       onAuthStateChanged(auth, renderUser);
     });
@@ -281,9 +322,11 @@
       <button id="btnAdd">Añadir marcador</button>
       <div class="hint">(Necesitas estar logueado para guardar y ver tus marcadores)</div>
       <div id="formStatus" class="hint"></div>
+      <input id="imageFile" type="file" accept="image/*" />
     </div>
 
     <div id="map"></div>
+    <div id="gallery" style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;"></div>
   </main>
 </body>
 </html>

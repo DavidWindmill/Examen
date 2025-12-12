@@ -6,6 +6,8 @@ from app.auth import current_user
 from app.models_locations import Location
 from app.services.geocoding import geocode
 
+from app.services.dropbox_service import delete_dropbox_path
+
 router = APIRouter(prefix="/api", tags=["locations"])
 
 
@@ -24,38 +26,47 @@ async def get_locations(user=Depends(current_user)):
 
 
 @router.post("/locations")
-async def add_location(payload: AddLocationRequest, user=Depends(current_user)):
-    """Añade un marcador para el usuario usando geocoding (Nominatim)."""
-    email = user.get("email")
-    if not email:
-        raise HTTPException(status_code=400, detail="El token no incluye email")
+async def create_location(
+    request: Request,
+    place: str = Form(...),
+    image: UploadFile | None = File(None),
+):
+    # aquí asumo que tú ya sacas el email del token en tu dependencia/middleware
+    # Ejemplo: email = request.state.user_email
+    email = request.state.email  # ajusta esto a tu implementación real
 
-    place = payload.place.strip()
-    coords = await geocode(place)
-    if not coords:
-        raise HTTPException(status_code=404, detail="Lugar no encontrado")
+    # 1) geocodificar "place" como ya haces ahora
+    # debe devolverte name/lat/lon (lon)
+    name, lat, lon = await geocode_place(place)  # <- usa tu función actual
 
-    lat, lon = coords
-    loc = Location(email=email, name=place, lat=lat, lon=lon)
+    loc = Location(email=email, name=name, lat=lat, lon=lon)
+
+    # 2) imagen opcional
+    if image:
+        if not image.content_type or not image.content_type.startswith("image/"):
+            raise HTTPException(400, "El archivo debe ser una imagen")
+
+        content = await image.read()
+        ext = os.path.splitext(image.filename or "")[1].lower() or ".jpg"
+        dropbox_path = f"{DROPBOX_BASE_FOLDER}/locations/{email}/{uuid4().hex}{ext}"
+
+        public_url, saved_path = await upload_image_bytes(content, dropbox_path)
+        loc.image_url = public_url
+        loc.image_path = saved_path
+
     await loc.insert()
     return loc
 
 
 @router.delete("/locations/{location_id}")
-async def delete_location(location_id: str, user=Depends(current_user)):
-    """Elimina un marcador del usuario. (Opcional, pero útil)"""
-    email = user.get("email")
-    if not email:
-        raise HTTPException(status_code=400, detail="El token no incluye email")
-
-    try:
-        oid = PydanticObjectId(location_id)
-    except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
-
-    loc = await Location.get(oid)
+async def delete_location(location_id: str, request: Request):
+    email = request.state.email  # ajusta
+    loc = await Location.get(location_id)
     if not loc or loc.email != email:
-        raise HTTPException(status_code=404, detail="Marcador no encontrado")
+        raise HTTPException(404, "No encontrado")
+
+    if loc.image_path:
+        await delete_dropbox_path(loc.image_path)
 
     await loc.delete()
     return {"ok": True}

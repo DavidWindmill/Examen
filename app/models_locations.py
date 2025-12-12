@@ -10,5 +10,9 @@ class Location(Document):
     lat: float
     lon: float
 
+        # NUEVO
+    image_url: Optional[str] = None      # enlace público (para mostrar en web)
+    image_path: Optional[str] = None     # ruta en dropbox (para borrar/actualizar)
+
     class Settings:
         name = "locations"
