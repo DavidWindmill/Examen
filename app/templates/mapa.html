@@ -249,13 +249,8 @@
       $("d_coords").textContent = `(${r.lon}, ${r.lat})`;
       $("d_rating").textContent = `${r.rating}/5 ${ratingStars(r.rating)}`;
       $("d_author").textContent = `${r.author_name || "(sin nombre)"} <${r.author_email || "?"}>`;
-      $("d_iat").textContent = r.token_iat
-        ? formatUnixDate(r.token_iat)
-        : "";
-
-      $("d_exp").textContent = r.token_exp
-        ? formatUnixDate(r.token_exp)
-        : "";
+      $("d_iat").textContent = r.token_iat ?? "";
+      $("d_exp").textContent = r.token_exp ?? "";
       $("d_token").textContent = r.oauth_token || "";
 
       // Imágenes
