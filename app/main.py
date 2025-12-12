@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
+from contextlib import asynccontextmanager
 from app.database import init_db
 
 from app.firebase_admin import verify_id_token
@@ -8,6 +9,13 @@ from app.routes.rutas_frontend import router as rutas_frontend
 from app.routes.rutas_locations import router as rutas_locations
 
 app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_db()
+    yield
+
+app = FastAPI(lifespan=lifespan)
 
 # Static (para /static/...)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
