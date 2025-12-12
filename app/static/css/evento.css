@@ -1,0 +1,229 @@
+/* =========================
+   BASE
+   ========================= */
+
+.evento-page {
+    max-width: 1200px;
+}
+
+/* Un poco de aire general */
+.evento-page .card {
+    border-radius: 14px;
+    border: 1px solid #e1e4e8;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+}
+
+/* Título y descripción del evento */
+.evento-page h1.h3 {
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.evento-page p.text-muted {
+    font-size: 0.95rem;
+}
+
+/* =========================
+   FICHAS DE INFO (Lugar / Organizador / Inicio / Fin)
+   ========================= */
+
+.info-pill {
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    height: 100%;
+}
+
+.info-pill .info-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #9ca3af;
+}
+
+.info-pill .info-value {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: #111827;
+}
+
+/* =========================
+   COMENTARIOS
+   ========================= */
+
+.comments-section {
+    font-size: 0.95rem;
+}
+
+.comment-card {
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    padding: 12px 14px;
+    background-color: #ffffff;
+    transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.comment-card:hover {
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+    transform: translateY(-1px);
+}
+
+.comment-content .fw-semibold {
+    font-size: 0.95rem;
+}
+
+.comment-content p {
+    font-size: 0.9rem;
+}
+
+/* Botones pequeñitos de editar/borrar */
+.comment-actions .btn-sm {
+    padding-inline: 10px;
+    border-radius: 999px;
+}
+
+/* =========================
+   GALERÍA DE IMÁGENES
+   ========================= */
+
+.image-gallery {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.image-gallery .image-item {
+    position: relative;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid #e5e7eb;
+    background: #f9fafb;
+    min-height: 90px;
+}
+
+.image-gallery img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* Botón de borrar en la esquina */
+.delete-image-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    border: none;
+    border-radius: 999px;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    font-size: 0.9rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Texto de estado de subida */
+#upload-status {
+    font-size: 0.8rem;
+}
+
+/* =========================
+   MODALES (si quieres quitar el <style> inline)
+   ========================= */
+
+.modal-oculto { 
+    display: none; 
+}
+
+.modal-visible {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15, 23, 42, 0.45);
+    z-index: 9999;
+}
+
+.modal-contenido {
+    background: #ffffff;
+    border-radius: 14px;
+    padding: 22px;
+    width: 380px;
+    max-width: 92%;
+    box-shadow: 0 16px 35px rgba(15, 23, 42, 0.35);
+    animation: modal-aparecer 0.16s ease-out;
+    border: 1px solid #e5e7eb;
+}
+
+.modal-titulo {
+    margin-bottom: 10px;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.modal-buttons {
+    margin-top: 10px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+/* Campos dentro de los modales */
+.modal-info .form-group {
+    margin-bottom: 16px;
+}
+
+.modal-info label {
+    font-size: 0.85rem;
+    color: #4b5563;
+    margin-bottom: 4px;
+}
+
+.modal-info input[type="text"],
+.modal-info input[type="number"] {
+    font-size: 0.9rem;
+}
+
+/* Animación */
+@keyframes modal-aparecer {
+    from { 
+        transform: translateY(6px) scale(0.97);
+        opacity: 0;
+    }
+    to   { 
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+}
+
+/* =========================
+   RESPONSIVE
+   ========================= */
+
+@media (max-width: 992px) {
+    .evento-page .row.mb-4 {
+        row-gap: 1.5rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .evento-page .card {
+        border-radius: 10px;
+    }
+
+    .comment-card {
+        padding: 10px 12px;
+    }
+
+    .modal-contenido {
+        padding: 18px;
+    }
+}

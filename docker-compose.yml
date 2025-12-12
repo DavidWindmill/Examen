@@ -1,0 +1,43 @@
+services:
+  # API Gateway
+  app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: examen-gateway
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      MAPA_SERVICE_URL: "http://servicio-mapa:8001"
+      # EVENTOS_SERVICE_URL: "http://servicio-eventos:8001"
+      # COMENTARIOS_SERVICE_URL: "http://servicio-comentarios:8003"
+    depends_on:
+      - servicio-mapa
+      # - servicio-eventos
+      # - servicio-comentarios
+    networks:
+      - examen-network
+
+  # Servicio de Mapa
+  servicio-mapa:
+    build:
+      context: ./servicioMapa
+      dockerfile: Dockerfile
+    container_name: examen
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    env_file:
+      - .env
+    environment:
+      MONGO_URI: "mongodb+srv://admin:admin@superbd.bc1ak.mongodb.net/?retryWrites=true&w=majority&appName=SuperBD"
+      SERVICE_PORT: 8001
+    networks:
+      - examen-network
+
+networks:
+  examen-network:
+    driver: bridge
