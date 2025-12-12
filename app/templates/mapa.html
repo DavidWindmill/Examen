@@ -3,116 +3,61 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ReViews</title>
+  <title>Mapa</title>
 
   <!-- Leaflet (OpenStreetMap) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
-    :root {
-      --border: #e6e6e6;
-      --muted: rgba(0,0,0,.72);
-    }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial; margin: 0; }
     header {
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      justify-content: flex-end;
       gap: 12px;
       padding: 12px 16px;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid #e6e6e6;
     }
-    .brand { font-weight: 700; letter-spacing: .2px; }
-    .user { display: flex; align-items: center; gap: 10px; }
-    #userAvatar { width: 32px; height: 32px; border-radius: 999px; display: none; }
+    .user {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-right: 6px;
+    }
+    #userAvatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      display: none;
+    }
     button {
       cursor: pointer;
       padding: 8px 12px;
       border: 1px solid #ddd;
-      border-radius: 12px;
+      border-radius: 10px;
       background: white;
     }
-    button.primary { border-color: #b8c6ff; background: #eef2ff; }
-    button.danger { border-color: #ffd0d0; background: #fff1f1; }
     #btnLogout { display: none; }
-
     main { padding: 16px; }
-    #status { font-size: 13px; opacity: .8; }
-
-    .grid {
-      display: grid;
-      grid-template-columns: 360px 1fr;
-      gap: 16px;
-      align-items: start;
+    #status { font-size: 14px; opacity: .8; }
+    #map { height: 520px; border-radius: 16px; border: 1px solid #e6e6e6; }
+    .panel {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin: 12px 0 16px;
     }
-    @media (max-width: 980px) {
-      .grid { grid-template-columns: 1fr; }
-    }
-
-    .card {
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 14px;
-      background: #fff;
-    }
-    .card h2 { margin: 0 0 10px 0; font-size: 16px; }
-
-    input, select, textarea {
+    input {
       padding: 10px 12px;
       border: 1px solid #ddd;
-      border-radius: 12px;
-      width: 100%;
-      box-sizing: border-box;
-      font-size: 14px;
+      border-radius: 10px;
+      min-width: 260px;
     }
-    label { display:block; font-size: 13px; color: var(--muted); margin: 10px 0 6px; }
-    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
     .hint { font-size: 13px; opacity: 0.8; }
-
-    #map { height: 520px; border-radius: 16px; border: 1px solid var(--border); }
-
-    #reviewsList { display:flex; flex-direction: column; gap: 8px; }
-    .item {
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 10px 10px;
-      cursor: pointer;
-    }
-    .item:hover { background: #fafafa; }
-    .item .title { font-weight: 650; }
-    .item .sub { font-size: 13px; color: var(--muted); margin-top: 4px; }
-    .badge {
-      display:inline-flex;
-      align-items:center;
-      gap:6px;
-      padding: 2px 8px;
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      font-size: 12px;
-      margin-left: 8px;
-    }
-
-    .detail-grid { display:grid; grid-template-columns: 1fr; gap: 10px; }
-    .kv { font-size: 13px; color: var(--muted); }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12px; }
-    .images { display:flex; gap: 10px; flex-wrap: wrap; }
-    .images img { height: 96px; border-radius: 12px; border: 1px solid var(--border); }
-
-    /* Gate (no login) */
-    #gate {
-      max-width: 520px;
-      margin: 64px auto;
-      padding: 18px;
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      text-align: center;
-    }
-    #app { display: none; }
   </style>
 
-  <!-- Firebase Auth (Google OAuth) -->
+  <!-- Firebase Auth + UI -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
     import {
@@ -123,7 +68,7 @@
       signOut
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
-    // ✅ Config ya preparada en tu plantilla
+    // ✅ Tu firebaseConfig (frontend). ApiKey pública OK.
     const firebaseConfig = {
       apiKey: "AIzaSyBXe0ayyeP0XbOuJsf7HeHNP7bxiJMc4oo",
       authDomain: "examen-6569c.firebaseapp.com",
@@ -142,7 +87,138 @@
 
     let map;
     let markersLayer;
-    let currentSelection = null;
+
+    async function callBackendMe(idToken) {
+      const res = await fetch("/api/me", {
+        headers: { Authorization: `Bearer ${idToken}` }
+      });
+      return res.json();
+    }
+
+    async function apiFetch(path, options = {}) {
+      const user = auth.currentUser;
+      if (!user) throw new Error("No autenticado");
+
+      const token = await user.getIdToken(); // token fresco
+
+      const headers = {
+        ...(options.headers || {}),
+        Authorization: `Bearer ${token}`,
+      };
+
+      return fetch(path, { ...options, headers });
+    }
+
+    function ensureMap() {
+      if (map) return;
+
+      map = L.map('map').setView([20, 0], 2);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+      }).addTo(map);
+
+      markersLayer = L.layerGroup().addTo(map);
+    }
+
+    async function refreshMarkers() {
+      ensureMap();
+      markersLayer.clearLayers();
+
+      const res = await apiFetch("/api/locations");
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt);
+      }
+
+      const data = await res.json();
+      const bounds = [];
+
+      data.forEach(loc => {
+        bounds.push([loc.lat, loc.lon]);
+        const m = L.marker([loc.lat, loc.lon]).addTo(markersLayer);
+
+        // ✅ Normaliza la URL para Dropbox (si aplica)
+        const imageUrl = normalizeDropboxUrl(loc.image_url);
+
+        const imgHtml = imageUrl
+          ? `<br/>
+            <img src="${escapeHtml(imageUrl)}"
+                  style="width:180px;max-width:100%;border-radius:12px;margin-top:8px;" />`
+          : "";
+
+        m.bindPopup(
+          `<b>${escapeHtml(loc.name)}</b>
+          ${imgHtml}
+          <br/>
+          <button data-del="${loc._id}">Eliminar</button>`
+        );
+
+        m.on("popupopen", (e) => {
+          const btn = e.popup.getElement()?.querySelector("button[data-del]");
+          if (!btn) return;
+          btn.addEventListener("click", async () => {
+            try {
+              await apiFetch(`/api/locations/${btn.getAttribute("data-del")}`, {
+                method: "DELETE"
+              });
+              await refreshMarkers();
+            } catch (err) {
+              console.error(err);
+              alert("No se pudo eliminar el marcador");
+            }
+          });
+        });
+      });
+
+      if (bounds.length) {
+        map.fitBounds(bounds, { padding: [30, 30] });
+      }
+
+      renderGallery(data);
+    }
+
+    function renderGallery(locations) {
+      const g = document.getElementById("gallery");
+      if (!g) return;
+
+      g.innerHTML = "";
+
+      locations
+        .filter(l => l.image_url)
+        .forEach(l => {
+          const img = document.createElement("img");
+          // ✅ Normaliza también en la galería
+          img.src = normalizeDropboxUrl(l.image_url);
+          img.alt = l.name;
+          img.style.height = "110px";
+          img.style.borderRadius = "12px";
+          img.style.border = "1px solid #e6e6e6";
+          g.appendChild(img);
+        });
+    }
+
+    async function addPlace(place, file) {
+      const fd = new FormData();
+      fd.append("place", place);
+      if (file) fd.append("image", file);
+
+      const res = await apiFetch("/api/locations", {
+        method: "POST",
+        body: fd
+      });
+
+      const contentType = res.headers.get("content-type") || "";
+      const body = contentType.includes("application/json")
+        ? await res.json()
+        : await res.text();
+
+      if (!res.ok) {
+        // esto te enseña EXACTAMENTE qué está devolviendo FastAPI
+        throw new Error(`POST /api/locations -> ${res.status}\n${typeof body === "string" ? body : JSON.stringify(body)}`);
+      }
+
+      return body;
+    }
 
     function escapeHtml(str) {
       return String(str)
@@ -153,169 +229,14 @@
         .replaceAll("'", "&#039;");
     }
 
-    // ✅ Dropbox: convierte enlace compartido en enlace directo
+    // ✅ Convierte URLs de Dropbox tipo "www.dropbox.com/...?...&dl=0" a enlace directo
     function normalizeDropboxUrl(url) {
       if (!url) return url;
+
       return url
         .replace("www.dropbox.com", "dl.dropboxusercontent.com")
         .replace("?dl=0", "")
         .replace("&dl=0", "");
-    }
-
-    async function apiFetch(path, options = {}) {
-      const user = auth.currentUser;
-      if (!user) throw new Error("No autenticado");
-      const token = await user.getIdToken();
-
-      const headers = {
-        ...(options.headers || {}),
-        Authorization: `Bearer ${token}`,
-      };
-      return fetch(path, { ...options, headers });
-    }
-
-    function ensureMap() {
-      if (map) return;
-      map = L.map('map').setView([20, 0], 2);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap'
-      }).addTo(map);
-      markersLayer = L.layerGroup().addTo(map);
-    }
-
-    function ratingStars(n) {
-      const k = Math.max(0, Math.min(5, Number(n) || 0));
-      return "★".repeat(k) + "☆".repeat(5 - k);
-    }
-
-    async function refreshAll() {
-      ensureMap();
-      markersLayer.clearLayers();
-
-      const res = await apiFetch("/api/reviews");
-      if (!res.ok) throw new Error(await res.text());
-      const reviews = await res.json();
-
-      // Lista
-      const list = $("reviewsList");
-      list.innerHTML = "";
-      reviews
-        .sort((a,b) => (b.rating ?? 0) - (a.rating ?? 0))
-        .forEach(r => {
-          const el = document.createElement("div");
-          el.className = "item";
-          el.dataset.id = r._id;
-          el.innerHTML = `
-            <div class="title">${escapeHtml(r.place_name)} <span class="badge">${ratingStars(r.rating)} ${escapeHtml(String(r.rating))}/5</span></div>
-            <div class="sub">${escapeHtml(r.address)}</div>
-            <div class="sub">(${escapeHtml(String(r.lon))}, ${escapeHtml(String(r.lat))})</div>
-          `;
-          el.addEventListener("click", () => selectReview(r._id));
-          list.appendChild(el);
-        });
-
-      // Marcadores
-      const bounds = [];
-      reviews.forEach(r => {
-        bounds.push([r.lat, r.lon]);
-        const m = L.marker([r.lat, r.lon]).addTo(markersLayer);
-        m.bindPopup(
-          `<b>${escapeHtml(r.place_name)}</b><br/>${escapeHtml(r.address)}<br/>${escapeHtml(String(r.rating))}/5 ${ratingStars(r.rating)}<br/><button data-open="${escapeHtml(r._id)}">Ver detalle</button>`
-        );
-        m.on("popupopen", (e) => {
-          const btn = e.popup.getElement()?.querySelector("button[data-open]");
-          if (!btn) return;
-          btn.addEventListener("click", () => selectReview(btn.getAttribute("data-open")));
-        });
-      });
-      if (bounds.length) map.fitBounds(bounds, { padding: [30, 30] });
-
-      // Mantener selección si existe
-      if (currentSelection) {
-        const still = reviews.find(r => r._id === currentSelection);
-        if (still) await selectReview(currentSelection);
-      }
-    }
-
-    async function selectReview(id) {
-      currentSelection = id;
-      const res = await apiFetch(`/api/reviews/${id}`);
-      if (!res.ok) throw new Error(await res.text());
-      const r = await res.json();
-
-      // Panel detalle
-      $("d_title").textContent = r.place_name || "(sin nombre)";
-      $("d_address").textContent = r.address || "";
-      $("d_coords").textContent = `(${r.lon}, ${r.lat})`;
-      $("d_rating").textContent = `${r.rating}/5 ${ratingStars(r.rating)}`;
-      $("d_author").textContent = `${r.author_name || "(sin nombre)"} <${r.author_email || "?"}>`;
-      $("d_iat").textContent = r.token_iat ?? "";
-      $("d_exp").textContent = r.token_exp ?? "";
-      $("d_token").textContent = r.oauth_token || "";
-
-      // Imágenes
-      const box = $("d_images");
-      box.innerHTML = "";
-      (r.images || []).forEach(img => {
-        const el = document.createElement("img");
-        el.src = normalizeDropboxUrl(img.url);
-        el.alt = r.place_name;
-        box.appendChild(el);
-      });
-
-      // Centrar mapa
-      ensureMap();
-      map.setView([r.lat, r.lon], Math.max(map.getZoom(), 14));
-    }
-
-    async function createReview() {
-      const place_name = $("f_name").value.trim();
-      const address = $("f_address").value.trim();
-      const rating = $("f_rating").value;
-      const files = $("f_images").files;
-
-      if (!place_name || !address) {
-        alert("Rellena nombre y dirección.");
-        return;
-      }
-
-      const fd = new FormData();
-      fd.append("place_name", place_name);
-      fd.append("address", address);
-      fd.append("rating", rating);
-      for (const f of files) fd.append("images", f);
-
-      $("formStatus").textContent = "Creando reseña (geocoding + subida de imágenes)...";
-
-      const res = await apiFetch("/api/reviews", { method: "POST", body: fd });
-      const ct = res.headers.get("content-type") || "";
-      const body = ct.includes("application/json") ? await res.json() : await res.text();
-      if (!res.ok) throw new Error(typeof body === "string" ? body : JSON.stringify(body));
-
-      // Limpia
-      $("f_name").value = "";
-      $("f_address").value = "";
-      $("f_rating").value = "5";
-      $("f_images").value = "";
-      $("formStatus").textContent = "Reseña creada.";
-
-      await refreshAll();
-      await selectReview(body._id || body.id || currentSelection);
-    }
-
-    async function searchAndCenter() {
-      const q = $("searchAddress").value.trim();
-      if (!q) return;
-      $("searchStatus").textContent = "Buscando...";
-      const res = await apiFetch(`/api/geocode?q=${encodeURIComponent(q)}`);
-      if (!res.ok) {
-        $("searchStatus").textContent = "No encontrado.";
-        return;
-      }
-      const data = await res.json();
-      ensureMap();
-      map.setView([data.lat, data.lon], 14);
-      $("searchStatus").textContent = "";
     }
 
     async function renderUser(user) {
@@ -324,18 +245,15 @@
       const status = $("status");
       const btnLogin = $("btnLogin");
       const btnLogout = $("btnLogout");
-      const gate = $("gate");
-      const app = $("app");
 
       if (!user) {
+        localStorage.removeItem("token");
         avatar.style.display = "none";
         avatar.src = "";
         name.textContent = "No autenticado";
         status.textContent = "";
         btnLogin.style.display = "inline-flex";
         btnLogout.style.display = "none";
-        gate.style.display = "block";
-        app.style.display = "none";
         return;
       }
 
@@ -344,19 +262,18 @@
       name.textContent = user.displayName || user.email || "Usuario";
       btnLogin.style.display = "none";
       btnLogout.style.display = "inline-flex";
-      gate.style.display = "none";
-      app.style.display = "block";
 
       try {
-        const token = await user.getIdToken();
-        const me = await fetch("/api/me", { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json());
-        status.textContent = `Autenticado: ${me.email || "?"}`;
+        const idToken = await user.getIdToken();
+        localStorage.setItem("token", idToken);
+        const me = await callBackendMe(idToken);
+        status.textContent = `Backend OK: UID=${me.uid || "?"} Email=${me.email || "?"}`;
 
-        ensureMap();
-        await refreshAll();
+        // Cargar mapa y marcadores del usuario
+        await refreshMarkers();
       } catch (e) {
         console.error(e);
-        status.textContent = "Backend: no se pudo verificar el token (revisa Firebase Admin).";
+        status.textContent = "Backend: no se pudo verificar el token (revisa /api/me y Firebase Admin).";
       }
     }
 
@@ -366,43 +283,38 @@
           await signInWithPopup(auth, provider);
         } catch (e) {
           console.error("Login error:", e);
-          alert("Error al iniciar sesión con Google.");
-        }
-      });
-
-      $("btnLoginGate").addEventListener("click", async () => {
-        try {
-          await signInWithPopup(auth, provider);
-        } catch (e) {
-          console.error("Login error:", e);
-          alert("Error al iniciar sesión con Google.");
+          alert("Error al iniciar sesión con Google. Revisa Authorized domains en Firebase.");
         }
       });
 
       $("btnLogout").addEventListener("click", async () => {
         try {
           await signOut(auth);
+          localStorage.removeItem("token");
         } catch (e) {
           console.error("Logout error:", e);
         }
       });
 
-      $("btnCreate").addEventListener("click", async () => {
+      $("btnAdd").addEventListener("click", async () => {
+        const input = $("place");
+        const place = (input.value || "").trim();
+        if (!place) return;
+
+        const fileInput = $("imageFile");
+        const file = fileInput?.files?.[0] || null;
+
         try {
-          await createReview();
+          $("formStatus").textContent = "Guardando marcador e imagen...";
+          await addPlace(place, file);
+          input.value = "";
+          if (fileInput) fileInput.value = ""; // limpia el input
+          await refreshMarkers();
+          $("formStatus").textContent = "Marcador añadido.";
         } catch (e) {
           console.error(e);
           $("formStatus").textContent = e?.message || String(e);
           alert(e?.message || String(e));
-        }
-      });
-
-      $("btnSearch").addEventListener("click", async () => {
-        try {
-          await searchAndCenter();
-        } catch (e) {
-          console.error(e);
-          $("searchStatus").textContent = "Error en búsqueda.";
         }
       });
 
@@ -413,102 +325,31 @@
 
 <body>
   <header>
-    <div class="brand">ReViews</div>
-
     <div class="user">
       <img id="userAvatar" alt="avatar" />
       <div>
         <div id="userName">No autenticado</div>
         <div id="status"></div>
       </div>
-      <button id="btnLogin" class="primary">Entrar con Google</button>
-      <button id="btnLogout">Salir</button>
     </div>
+
+    <button id="btnLogin">Entrar con Google</button>
+    <button id="btnLogout">Salir</button>
   </header>
 
-  <div id="gate">
-    <h1 style="margin:0 0 10px 0;">Necesitas identificarte</h1>
-    <p style="margin:0 0 14px 0; color: var(--muted);">
-      ReViews solo permite ver/crear reseñas si haces login mediante OAuth (Google).
-    </p>
-    <button id="btnLoginGate" class="primary">Entrar con Google</button>
-  </div>
+  <main>
+    <h1>Mapa</h1>
 
-  <main id="app">
-    <div class="grid">
-      <div class="card">
-        <h2>Crear reseña</h2>
-        <label for="f_name">Nombre del establecimiento</label>
-        <input id="f_name" placeholder="Ej: Casa Lola" />
-
-        <label for="f_address">Dirección postal</label>
-        <input id="f_address" placeholder="Ej: Calle Granada 46, Málaga" />
-
-        <div class="row">
-          <div>
-            <label for="f_rating">Valoración (0..5)</label>
-            <select id="f_rating">
-              <option>0</option><option>1</option><option>2</option><option>3</option><option>4</option><option selected>5</option>
-            </select>
-          </div>
-          <div>
-            <label for="f_images">Imágenes (opcional)</label>
-            <input id="f_images" type="file" accept="image/*" multiple />
-          </div>
-        </div>
-
-        <div style="margin-top:12px; display:flex; gap:10px; align-items:center;">
-          <button id="btnCreate" class="primary">Publicar</button>
-          <div id="formStatus" class="hint"></div>
-        </div>
-      </div>
-
-      <div class="card">
-        <h2>Mapa</h2>
-        <div class="row" style="margin-bottom:10px;">
-          <input id="searchAddress" placeholder="Centrar el mapa en una dirección (ej: Plaza Mayor, Madrid)" />
-          <button id="btnSearch">Buscar</button>
-        </div>
-        <div id="searchStatus" class="hint" style="margin-bottom:10px;"></div>
-        <div id="map"></div>
-      </div>
+    <div class="panel">
+      <input id="place" placeholder="Añade país o ciudad (ej: Japón, Madrid, Kyoto...)" />
+      <button id="btnAdd">Añadir marcador</button>
+      <div class="hint">(Necesitas estar logueado para guardar y ver tus marcadores)</div>
+      <div id="formStatus" class="hint"></div>
+      <input id="imageFile" type="file" accept="image/*" />
     </div>
 
-    <div class="grid" style="margin-top: 16px;">
-      <div class="card">
-        <h2>Reseñas</h2>
-        <div class="hint" style="margin-bottom:10px;">Selecciona una reseña para ver el detalle.</div>
-        <div id="reviewsList"></div>
-      </div>
-
-      <div class="card">
-        <h2>Detalle</h2>
-        <div class="detail-grid">
-          <div>
-            <div style="font-size: 18px; font-weight: 700;" id="d_title">—</div>
-            <div class="kv" id="d_address"></div>
-            <div class="kv" id="d_coords"></div>
-            <div class="kv" id="d_rating"></div>
-          </div>
-
-          <div>
-            <div class="kv"><b>Autor:</b> <span id="d_author"></span></div>
-            <div class="kv"><b>Token iat:</b> <span id="d_iat"></span></div>
-            <div class="kv"><b>Token exp:</b> <span id="d_exp"></span></div>
-          </div>
-
-          <div>
-            <div class="kv"><b>Token OAuth (con el que se creó):</b></div>
-            <div class="mono" id="d_token" style="white-space: pre-wrap; word-break: break-all; border: 1px solid var(--border); border-radius: 14px; padding: 10px;"></div>
-          </div>
-
-          <div>
-            <div class="kv"><b>Imágenes:</b></div>
-            <div class="images" id="d_images"></div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <div id="map"></div>
+    <div id="gallery" style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;"></div>
   </main>
 </body>
 </html>
