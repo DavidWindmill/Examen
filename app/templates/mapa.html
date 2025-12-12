@@ -153,6 +153,35 @@
         .replaceAll("'", "&#039;");
     }
 
+    function formatUnixDate(ts) {
+      if (ts == null) return "";
+
+      // Soporta Mongo Long serializado: { $numberLong: "..." }
+      if (typeof ts === "object" && ts.$numberLong) {
+        ts = ts.$numberLong;
+      }
+
+      // String/Number -> Number
+      const n = Number(ts);
+      if (!Number.isFinite(n)) return "";
+
+      // Si viene en milisegundos (13 dígitos aprox), no multipliques
+      const ms = n > 1e12 ? n : n * 1000;
+
+      const d = new Date(ms);
+      if (isNaN(d.getTime())) return "";
+
+      return d.toLocaleString("es-ES", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+    }
+
+
     // ✅ Dropbox: convierte enlace compartido en enlace directo
     function normalizeDropboxUrl(url) {
       if (!url) return url;
@@ -249,8 +278,8 @@
       $("d_coords").textContent = `(${r.lon}, ${r.lat})`;
       $("d_rating").textContent = `${r.rating}/5 ${ratingStars(r.rating)}`;
       $("d_author").textContent = `${r.author_name || "(sin nombre)"} <${r.author_email || "?"}>`;
-      $("d_iat").textContent = r.token_iat ?? "";
-      $("d_exp").textContent = r.token_exp ?? "";
+      $("d_iat").textContent = formatUnixDate(r.token_iat);
+      $("d_exp").textContent = formatUnixDate(r.token_exp);
       $("d_token").textContent = r.oauth_token || "";
 
       // Imágenes
