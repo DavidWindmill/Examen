@@ -22,3 +22,4 @@ dropbox>=11.36
 firebase-admin>=6.4
 
 python-dotenv
+firebase-admin
