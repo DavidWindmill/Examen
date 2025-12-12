@@ -1,23 +1,14 @@
-import os
-import httpx
-import services.mapa as MapaService
-from fastapi import APIRouter, HTTPException, Query, Body
+from pathlib import Path
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi import Request
-from datetime import date, datetime
+
 router = APIRouter(tags=["Frontend"])
 
-templates = Jinja2Templates(directory="templates")
-
-# ------------------------------------------------------- #
-#                   Rutas del Frontend                    #
-# ------------------------------------------------------- #
+BASE_DIR = Path(__file__).resolve().parent.parent  # vuelve a /app
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 @router.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
+    return templates.TemplateResponse("mapa.html", {"request": request})
 
-    return templates.TemplateResponse("mapa.html", {
-         "request": request,
-    })
