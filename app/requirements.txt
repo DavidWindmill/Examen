@@ -20,3 +20,5 @@ requests>=2.31
 # Otros
 dropbox>=11.36
 firebase-admin>=6.4
+
+python-dotenv
