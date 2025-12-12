@@ -9,16 +9,16 @@ from app.routes.rutas_locations import router as rutas_locations
 
 app = FastAPI()
 
+@app.on_event("startup")
+async def startup():
+    await init_db()
+
 # Static (para /static/...)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 # Frontend (ruta /)
 app.include_router(rutas_frontend)
 app.include_router(rutas_locations)
-
-@app.on_event("startup")
-async def startup():
-    await init_db()
 
 bearer = HTTPBearer()
 
