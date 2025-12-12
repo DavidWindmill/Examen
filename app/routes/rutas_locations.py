@@ -1,6 +1,9 @@
 from beanie import PydanticObjectId
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, Form, UploadFile, File
 from pydantic import BaseModel, Field
+
+from uuid import uuid4
+import os
 
 from app.auth import current_user
 from app.models_locations import Location
