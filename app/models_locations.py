@@ -1,5 +1,6 @@
 from beanie import Document
 from pydantic import Field
+from typing import Optional
 
 
 class Location(Document):
