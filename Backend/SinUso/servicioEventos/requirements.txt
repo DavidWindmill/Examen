@@ -1,7 +1,0 @@
-uvicorn
-fastApi
-pymongo[srv]
-beanie
-pydantic
-motor
-httpx
