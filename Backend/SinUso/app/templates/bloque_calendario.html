@@ -1,0 +1,430 @@
+<!-- templates/calendario_block.html -->
+<div class="calendar-main">
+
+  <!-- Navegación del calendario -->
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <a href="{{ url_mes_anterior }}" class="btn btn-outline-primary">&lt;</a>
+    <h3>{{ mes_actual }}</h3>
+    <a href="{{ url_mes_siguiente }}" class="btn btn-outline-primary">&gt;</a>
+  </div>
+
+  <div class="calendar-big">
+
+    <!-- CABECERAS -->
+    <div class="calendar-headers">
+      {% for dia in dias_semana %}
+        <div>{{ dia }}</div>
+      {% endfor %}
+    </div>
+
+    <!-- GRID DEL MES -->
+    <div class="calendar-grid-body">
+      {% for w in range(mes_matriz|length) %}
+        {% set semana = mes_matriz[w] %}
+        {% for dia in semana %}
+          {% if dia == 0 %}
+            <div class="day-cell empty-day"></div>
+          {% else %}
+            <div class="day-cell" onclick="abrirFormularioCrearEvento({{ dia }}, {{ mes }}, {{ anyo }})">
+              
+              <!-- Número del día -->
+              <div class="day-number">{{ dia }}</div>
+
+              <!-- Eventos -->
+              <div class="events-box">
+                {% for ev in evento_barras %}
+                  {% if ev.semana == w and ev.inicio_dia <= dia <= ev.fin_dia %}
+                    <div class="event-bar"
+                         style="grid-column: {{ ev.start_col + 1 }} / {{ ev.start_col + ev.span + 1 }};"
+                         onclick="abrirEventoWrapper(event,
+                                                     '{{ ev.titulo|e }}',
+                                                     '{{ ev.raw.hora_comienzo }}',
+                                                     '{{ ev.raw.hora_fin }}',
+                                                     '{{ ev.raw.lugar|default('') }}',
+                                                     '{{ ev.raw.organizador|default('') }}',
+                                                     '{{ ev.id }}')">
+                      {{ ev.titulo }}
+                    </div>
+                  {% endif %}
+                {% endfor %}
+              </div>
+
+            </div>
+          {% endif %}
+        {% endfor %}
+      {% endfor %}
+    </div>
+
+  </div>
+</div>
+
+<!-- Modal Ver Evento -->
+<div id="modal-evento" class="modal-oculto" role="dialog" aria-modal="true">
+  <div class="modal-contenido">
+
+    <div class="modal-buttons">
+      <button class="btn btn-secondary" onclick="cerrarEvento()">Cerrar</button>
+      <button id="abrir-evento-btn" class="btn btn-primary">Abrir Evento</button>
+      <button id="borrar-evento-btn" class="btn btn-danger">Eliminar</button>
+    </div>
+
+    <h3 id="modal-titulo" class="modal-titulo"></h3>
+
+    <div class="modal-info">
+      <p><strong>📅 Inicio:</strong> <span id="modal-inicio"></span></p>
+      <p><strong>📅 Fin:</strong> <span id="modal-fin"></span></p>
+      <p><strong>📍 Lugar:</strong> <span id="modal-lugar"></span></p>
+      <p><strong>👤 Organizador:</strong> <span id="modal-organizador"></span></p>
+    </div>
+
+  </div>
+</div>
+
+<!-- Modal Crear Evento -->
+<div id="modal-crear-evento" class="modal-oculto">
+  <div class="modal-contenido">
+
+    <div class="modal-buttons">
+      <button class="btn btn-secondary" onclick="cerrarCrearEvento()">Cerrar</button>
+    </div>
+
+    <h3>Crear Evento</h3>
+
+    <form id="crear-evento" {% if not mostrar_selector %}data-calendario-id="{{ calendario_id }}"{% endif %}>
+
+      <label>Título</label>
+      <input type="text" id="titulo" required>
+
+      {% if mostrar_selector %}
+        <div class="selector-calendarios">
+          <label>Selecciona calendario:</label>
+          <select id="calendario_destino">
+            {% for cal in lista_calendarios %}
+              <option value="{{ cal._id }}">{{ cal.titulo }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      {% endif %}
+
+      <label>Hora Comienzo</label>
+      <input type="datetime-local" id="hora_comienzo" required>
+
+      <label>Hora Fin</label>
+      <input type="datetime-local" id="hora_fin" required>
+
+      <label>Lugar</label>
+      <input type="text" id="lugar">
+
+      <label>Descripcion</label>
+      <input type="text" id="descripcion">
+
+      <div class="modal-buttons">
+        <button type="button" onclick="cerrarCrearEvento()" class="btn btn-secondary">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Crear</button>
+      </div>
+
+    </form>
+  </div>
+</div>
+<script>
+  // ------------------------------------------------------- //
+  //                   Scripts Calendario                   //
+  // ------------------------------------------------------- //
+  function toggleCalendar(cb) {
+    const params = new URLSearchParams(window.location.search);
+    const current = params.get("cals") ? params.get("cals").split(",").filter(Boolean) : [];
+
+    if (cb.checked) {
+      if (!current.includes(cb.value)) current.push(cb.value);
+    } else {
+      const idx = current.indexOf(cb.value);
+      if (idx !== -1) current.splice(idx, 1);
+    }
+
+    params.set("cals", current.join(","));
+    window.location.search = params.toString();
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.form-check-input').forEach(cb => {
+      cb.addEventListener('change', () => toggleCalendar(cb));
+    });
+  });
+
+  // ------------------------------------------------------- //
+  //                   Scripts Ver Evento                   //
+  // ------------------------------------------------------- //
+  function abrirEventoWrapper(e, titulo, inicioISO, finISO, lugar, organizador, id) {
+    if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+    abrirEvento(titulo, inicioISO, finISO, lugar, organizador, id);
+  }
+
+  async function abrirEvento(titulo, inicioISO, finISO, lugar, organizador, id) {
+    const inicio = new Date(inicioISO);
+    const fin = new Date(finISO);
+
+    // Título
+    document.getElementById("modal-titulo").innerText = titulo;
+
+    // Fechas
+    document.getElementById("modal-inicio").innerText = inicio.toLocaleString("es-ES", {
+      dateStyle: "medium",
+      timeStyle: "short"
+    });
+    document.getElementById("modal-fin").innerText = fin.toLocaleString("es-ES", {
+      dateStyle: "medium",
+      timeStyle: "short"
+    });
+
+    // Lugar
+    document.getElementById("modal-lugar").innerText = lugar && lugar.trim() !== "" ? lugar : "No especificado";
+
+    // Organizador
+    document.getElementById("modal-organizador").innerText = organizador && organizador.trim() !== "" ? organizador : "No indicado";
+
+    // Mostrar modal
+    document.getElementById("modal-evento").className = "modal-visible";
+
+    // Botón abrir evento
+    document.getElementById("abrir-evento-btn").onclick = () => {
+      window.location.href = "/evento/" + id;
+    };
+
+    // Botón borrar evento
+    document.getElementById("borrar-evento-btn").onclick = async () => {
+      if (confirm("¿Seguro que quieres eliminar este evento?")) {
+        const res = await fetch("/evento/" + id, { method: "DELETE" });
+        const data = await res.json();
+
+        if (data.success) {
+          alert("Evento eliminado");
+          location.reload();
+        } else {
+          alert("Error al eliminar evento");
+        }
+      }
+    };
+  }
+
+  function cerrarEvento() {
+    document.getElementById("modal-evento").className = "modal-oculto";
+  }
+
+  window.onclick = function(event) {
+    const eventoModal = document.getElementById('modal-evento');
+    const crearEventoModal = document.getElementById('modal-crear-evento');
+
+    if (event.target === eventoModal) {
+      cerrarEvento();
+    } else if (event.target === crearEventoModal) {
+      cerrarCrearEvento();
+    }
+  };
+
+  // ------------------------------------------------------- //
+  //                   Scripts Crear Evento                 //
+  // ------------------------------------------------------- //
+  function abrirFormularioCrearEvento(dia, mes, anyo) {
+    const fecha = new Date(anyo, mes - 1, dia + 1);
+    const iso = fecha.toISOString().slice(0, 10);
+
+    document.getElementById("hora_comienzo").value = iso + "T09:00";
+    document.getElementById("hora_fin").value = iso + "T10:00";
+
+    document.getElementById("modal-crear-evento").className = "modal-visible";
+  }
+
+  async function crearEvento(mostrar_selector) {
+    const form = document.getElementById("crear-evento");
+    const payload = {
+      titulo: document.getElementById("titulo").value,
+      hora_comienzo: document.getElementById("hora_comienzo").value,
+      hora_fin: document.getElementById("hora_fin").value,
+      lugar: document.getElementById("lugar").value,
+      organizador: "futuro id_usuario",
+      descripcion: document.getElementById("descripcion").value
+    };
+
+    let calendarioId;
+    const mostrarSelector = {{ 'true' if mostrar_selector else 'false' }};
+   
+    if (mostrarSelector) {
+      calendarioId = document.getElementById("calendario_destino").value;
+    } else {
+      calendarioId = form.dataset.calendarioId;
+    }
+
+    if (!calendarioId) {
+      alert("Error: no se encontró un calendario válido.");
+      return;
+    }
+
+    const res = await fetch(`/evento/calendario/${calendarioId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (res.ok) {
+      alert("Evento creado");
+      location.reload();
+    } else {
+      alert("Error al crear evento");
+    }
+  }
+
+  // Conectar el submit al formulario
+  document.getElementById("crear-evento").onsubmit = function(e) {
+    e.preventDefault();
+    crearEvento({{ 'true' if mostrar_selector else 'false' }});
+  };
+
+  function cerrarCrearEvento() {
+    document.getElementById("modal-crear-evento").className = "modal-oculto";
+  }
+</script>
+<style>
+/* ─────────────────────────────── */
+/* CONTENEDOR PRINCIPAL             */
+/* ─────────────────────────────── */
+.calendar-big {
+  flex: 1;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+}
+
+/* ─────────────────────────────── */
+/* CABECERAS (Lun–Dom)             */
+/* ─────────────────────────────── */
+.calendar-headers {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  font-weight: bold;
+  padding: 8px 0;
+  border-bottom: 2px solid #ddd;
+}
+
+/* ─────────────────────────────── */
+/* GRID DEL MES                     */
+/* ─────────────────────────────── */
+.calendar-grid-body {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-auto-rows: 1fr;
+  gap: 2px;
+}
+
+/* ─────────────────────────────── */
+/* CELDA DE DÍA                     */
+/* ─────────────────────────────── */
+.day-cell {
+  display: flex;
+  flex-direction: column;
+  min-height: 110px;
+  border: 1px solid #eee;
+  padding: 4px;
+}
+
+.day-number {
+  font-weight: bold;
+  margin-bottom: 6px;
+}
+
+.events-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* ─────────────────────────────── */
+/* EVENTOS                           */
+/* ─────────────────────────────── */
+.event-bar {
+  background: #58a7ff;
+  color: white;
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ─────────────────────────────── */
+/* MODAL                             */
+/* ─────────────────────────────── */
+.modal-oculto {
+  display: none;
+}
+
+.modal-visible {
+  display: flex;
+  position: fixed;
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.modal-contenido {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  width: 350px;
+  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.25);
+  animation: aparecer 0.15s ease-out;
+}
+
+@keyframes aparecer {
+  from { transform: scale(0.93); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+.modal-titulo {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+
+.modal-info p {
+  margin: 4px 0;
+}
+
+.modal-buttons {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 15px;
+}
+
+.btn-danger {
+  background: #d9534f;
+  color: white;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.btn-danger:hover {
+  background: #c9302c;
+}
+
+.btn-primary {
+  background: #0275d8;
+  color: white;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 5px;
+}
+
+.btn-primary:hover {
+  background: #025aa5;
+}
+
+.modal-crear-evento {
+  background-color: white;
+  display: flex;
+}
+</style>

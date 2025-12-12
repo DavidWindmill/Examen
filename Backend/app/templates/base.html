@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kalendas</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/theme-green.css">
+    <link rel="stylesheet" href="/static/css/theme-pink.css">
+    <style>
+        /* Estilos básicos de la página */
+        body {
+            display: flex;
+            min-height: 100vh;
+            flex-direction: column;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            min-height: 0;
+        }
+
+        .sidebar {
+            width: 280px;
+            padding: 15px;
+            border-right: 1px solid #eee;
+        }
+
+        .calendar-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            min-height: 0;
+        }
+
+        .navbar-custom {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #e7e7e7;
+        }
+
+        /* Que los textos del menú no se partan en varias líneas */
+        .navbar-custom .navbar-nav .nav-link {
+            white-space: nowrap;
+        }
+
+        /* Layout del bloque derecho de la cabecera */
+        .navbar-custom .header-right {
+            display: flex;              /* flex en todas las resoluciones */
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: nowrap;          /* por defecto todo en una línea */
+            width: 100%;
+        }
+
+        /* Bloques internos: tema, email, usuario */
+        .navbar-custom .theme-selector,
+        .navbar-custom .notif-email,
+        .navbar-custom .notif-user {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Tamaños de inputs */
+        .navbar-custom #theme-select {
+            max-width: 170px;
+        }
+
+        .navbar-custom #notif-email {
+            width: 280px;
+            max-width: 100%;
+        }
+
+        .navbar-custom #notif-usuario {
+            max-width: 160px;
+        }
+
+        /* Iconos de notificación y usuario SIEMPRE a la derecha */
+        .navbar-custom .header-icons {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            margin-left: auto;          /* empuja los iconos al extremo derecho */
+            padding-left: 0;
+        }
+
+        .navbar-custom .header-icons .nav-item {
+            list-style: none;
+        }
+
+        .navbar-custom .header-icons .nav-link {
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
+        }
+
+        /* Estética del botón hamburguesa */
+        .navbar-toggler {
+            border: none;
+        }
+
+        .navbar-toggler:focus {
+            box-shadow: none;
+        }
+
+        /* ===== RESPONISVO ===== */
+
+        /* Tablet y móvil */
+        @media (max-width: 991.98px) {
+
+            /* Permitimos que el bloque derecho se parta en 2 filas si no cabe */
+            .navbar-custom .header-right {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+
+            /* Tema, email y usuario ocupan ancho completo si hace falta */
+            .navbar-custom .theme-selector,
+            .navbar-custom .notif-email,
+            .navbar-custom .notif-user {
+                flex: 1 1 100%;
+            }
+
+            /* Iconos mantienen su tamaño y se quedan a la derecha */
+            .navbar-custom .header-icons {
+                flex: 0 0 auto;
+                margin-left: auto;
+            }
+
+            /* Email ocupa todo el ancho disponible en móvil */
+            .navbar-custom #notif-email {
+                width: 100%;
+            }
+        }
+
+        /* Móvil muy pequeño: un poco menos de separación */
+        @media (max-width: 575.98px) {
+            .navbar-custom .header-right {
+                gap: 0.4rem;
+            }
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 5px;
+            text-align: center;
+            width: 100%;
+        }
+
+        /* Mini calendar stays within the sidebar card */
+        .small-calendar {
+            grid-template-columns: repeat(7, minmax(28px, 1fr));
+            gap: 4px;
+            max-width: 100%;
+        }
+
+        .small-calendar .calendar-header {
+            font-weight: bold;
+            padding: 6px 2px;
+            font-size: 13px;
+            line-height: 1.1;
+            min-width: 0;
+            white-space: nowrap;
+        }
+
+        .sidebar .card-body {
+            padding: 0.75rem;
+        }
+
+        .day-cell-mini {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            font-size: 12px;
+            line-height: 1;
+            min-width: 0;
+            padding: 2px;
+        }
+
+        .day-cell-mini.empty {
+            border: none;
+            background: transparent;
+        }
+
+        
+        .event-bar {
+            color: white;
+            border-radius: 4px;
+            font-size: 12px;
+            width: 100%;
+            cursor: pointer;
+            pointer-events: all;
+            /* para poder hacer clic */
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .day-cell.today {
+            background: #007bff22;
+            border-radius: 8px;
+        }
+
+        .day-cell-mini.today-mini,
+        .day-cell-mini.dia-mini {
+            background: #007bff22;
+            border-radius: 6px;
+            border-color: #007bff55;
+        }
+
+        .event-badge {
+            display: block;
+            /* Color azul de Bootstrap */
+            color: white;
+            border-radius: 5px;
+            font-size: 0.8em;
+            text-decoration: none;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* CAPA DE EVENTOS */
+        .events-layer {
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        grid-template-rows: repeat(6, 100px);
+        pointer-events: none;      /* Para que puedas clicar los días */
+        z-index: 1;                /* Debajo de los números */
+    }
+
+    /* ====== PANEL DE NOTIFICACIONES ====== */
+        #notif-panel {
+            position: fixed;
+            right: 20px;
+            top: 65px;
+            width: 320px;
+            max-height: 400px;
+            overflow-y: auto;
+            background: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+            padding: 10px 12px;
+            z-index: 2000;
+            display: none;
+        }
+
+        #notif-panel.notif-panel-visible {
+            display: block;
+        }
+
+        .notif-item {
+            font-size: 0.9rem;
+            padding: 6px 4px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .notif-item:last-child {
+            border-bottom: none;
+        }
+
+        .notif-empty {
+            font-size: 0.85rem;
+            color: #666;
+            padding: 4px 2px;
+        }
+
+        #notif-bell-icon.has-notifications {
+            animation: bell-shake 0.6s ease-in-out infinite alternate;
+        }
+
+        #notif-badge {
+            font-size: 0.7rem;
+        }
+
+        @keyframes bell-shake {
+            0% { transform: rotate(0deg); }
+            25% { transform: rotate(-10deg); }
+            75% { transform: rotate(10deg); }
+            100% { transform: rotate(0deg); }
+        }
+
+    </style>
+</head>
+
+<body>
+    <!-- CABECERA -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-light navbar-custom">
+        <div class="container-fluid">
+            <!-- Título de la aplicación -->
+            <a class="navbar-brand" href="#">Kalendas</a>
+
+            <!-- Botón hamburguesa para móviles/tablets -->
+            <button class="navbar-toggler" type="button"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#navbarNav"
+                    aria-controls="navbarNav"
+                    aria-expanded="false"
+                    aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <!-- Barra de navegación izquierda -->
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">Próximos Eventos</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/busquedas">Buscar</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/calendarios">Mis Calendarios</a>
+                    </li>
+                </ul>
+
+                <!-- Bloque derecho de cabecera (tema + notificaciones + usuario + iconos) -->
+                <div class="d-lg-flex align-items-center ms-lg-4 ms-0 mt-3 mt-lg-0 gap-3 flex-wrap w-100 w-lg-auto header-right">
+
+                    <!-- Selector de tema -->
+                    <div class="theme-selector d-flex align-items-center gap-2">
+                        <label for="theme-select" class="mb-0">Tema:</label>
+                        <select id="theme-select" onchange="changeTheme(this.value)" class="form-select form-select-sm" style="max-width: 170px;">
+                            <option value="green">Verde Moco</option>
+                            <option value="pink">Rosa Pastel</option>
+                        </select>
+                    </div>
+
+                    <!-- BLOQUE NOTIFICACIÓN -->
+                    <div class="d-flex align-items-center gap-3 flex-wrap notif-email">
+
+                        <!-- Izquierda: texto + switch -->
+                        <div class="d-flex align-items-center gap-2">
+                            <label class="form-check-label mb-0" for="notif-toggle">
+                                Enviar por correo
+                            </label>
+                            <input
+                                class="form-check-input"
+                                type="checkbox"
+                                id="notif-toggle"
+                                role="switch"
+                            >
+                        </div>
+
+                        <!-- Derecha: correo -->
+                        <div class="d-flex align-items-center gap-2 flex-grow-1">
+                            <label class="mb-0" for="notif-email">
+                                Email:
+                            </label>
+                            <input
+                                type="email"
+                                id="notif-email"
+                                class="form-control form-control-sm"
+                                style="width: 250px; max-width: 100%;"
+                            >
+                        </div>
+
+                    </div>
+
+                    <!-- NUEVO: usuario de cabecera -->
+                    <div class="d-flex align-items-center gap-2 notif-user">
+                        <label class="mb-0" for="notif-usuario">
+                            Usuario:
+                        </label>
+                        <input
+                            type="text"
+                            id="notif-usuario"
+                            class="form-control form-control-sm"
+                            style="max-width: 160px;"
+                            value="futuro id_usuario"
+                        >
+                    </div>
+
+                    <!-- Iconos campana + usuario -->
+                    <ul class="navbar-nav ms-lg-2 header-icons flex-row align-items-center">
+                        <li class="nav-item position-relative me-2">
+                            <a class="nav-link" href="#" id="notif-bell" aria-label="Notificaciones">
+                                <i class="fas fa-bell" id="notif-bell-icon"></i>
+                                <!-- Badge con número de notificaciones -->
+                                <span
+                                    class="badge bg-danger position-absolute top-0 start-100 translate-middle"
+                                    id="notif-badge"
+                                    style="display:none;"
+                                >
+                                    0
+                                </span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#">
+                                <i class="fas fa-user-circle"></i>
+                            </a>
+                        </li>
+                    </ul>
+
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- NUEVO: panel flotante de notificaciones -->
+    <div id="notif-panel">
+        <!-- Aquí se rellenan las notificaciones por JS -->
+    </div>
+
+    <div class="main-content">
+        {% block content %}
+        {% endblock %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function changeTheme(theme) {
+            // Limpia clases previas
+            document.body.classList.remove("theme-green", "theme-pink");
+
+            // Aplica la nueva clase de tema
+            document.body.classList.add("theme-" + theme);
+
+            // Guarda preferencia
+            localStorage.setItem("kalendas-theme", theme);
+        }
+
+        // Variable global para el estado de notificación (checkbox de cabecera)
+        window.notificacionActiva = false;
+
+        document.addEventListener("DOMContentLoaded", function () {
+            /* ====== TEMA ====== */
+            const savedTheme = localStorage.getItem("kalendas-theme") || "green";
+            const themeSelect = document.getElementById("theme-select");
+            if (themeSelect) {
+                themeSelect.value = savedTheme;
+            }
+            changeTheme(savedTheme);
+
+            /* ====== SLIDER "ENVIAR POR CORREO" ====== */
+            const notifToggle = document.getElementById("notif-toggle");
+
+            // Leer valor guardado (por defecto: 0 -> false)
+            const savedNotif = localStorage.getItem("kalendas-notif");
+            if (savedNotif === "1") {
+                window.notificacionActiva = true;
+            } else {
+                window.notificacionActiva = false;
+            }
+
+            if (notifToggle) {
+                notifToggle.checked = window.notificacionActiva;
+
+                notifToggle.addEventListener("change", function () {
+                    window.notificacionActiva = notifToggle.checked;
+                    localStorage.setItem(
+                        "kalendas-notif",
+                        window.notificacionActiva ? "1" : "0"
+                    );
+
+                    // Si existe el campo oculto del modal, sincronizarlo
+                    const hiddenNotif = document.getElementById("crear-notificacion");
+                    if (hiddenNotif) {
+                        hiddenNotif.value = window.notificacionActiva ? 1 : 0;
+                    }
+                });
+            }
+
+            /* ====== CORREO EN CABECERA ====== */
+            const emailInput = document.getElementById("notif-email");
+            if (emailInput) {
+                const savedEmail =
+                    localStorage.getItem("kalendas-notif-email") || "";
+
+                emailInput.value = savedEmail;
+
+                emailInput.addEventListener("input", function () {
+                    localStorage.setItem("kalendas-notif-email", emailInput.value);
+                });
+            }
+
+            /* ====== USUARIO EN CABECERA ====== */
+            const userInput = document.getElementById("notif-usuario");
+            if (userInput) {
+                const savedUser =
+                    localStorage.getItem("kalendas-usuario") ||
+                    "futuro id_usuario";
+
+                userInput.value = savedUser;
+
+                userInput.addEventListener("input", function () {
+                    const value = userInput.value || "futuro id_usuario";
+                    localStorage.setItem("kalendas-usuario", value);
+                });
+
+                // Cuando cambie el usuario, recargo las notificaciones
+                userInput.addEventListener("change", cargarNotificaciones);
+                userInput.addEventListener("blur", cargarNotificaciones);
+            }
+
+            // Al cargar la página, sincronizar campo oculto del modal si existe
+            const hiddenNotifOnLoad = document.getElementById("crear-notificacion");
+            if (hiddenNotifOnLoad) {
+                hiddenNotifOnLoad.value = window.notificacionActiva ? 1 : 0;
+            }
+
+            async function cargarNotificaciones() {
+                const bellIcon = document.getElementById("notif-bell-icon");
+                const badge = document.getElementById("notif-badge");
+                const panel = document.getElementById("notif-panel");
+                const userInput = document.getElementById("notif-usuario");
+
+                if (!bellIcon || !panel) {
+                    return;
+                }
+
+                // Usuario de cabecera = organizador
+                const usuario =
+                    (userInput && userInput.value && userInput.value.trim()) ||
+                    localStorage.getItem("kalendas-usuario") ||
+                    "futuro id_usuario";
+
+                try {
+                    // ⬇️ Llamamos a la ruta que ya tienes en rutas_frontend.py
+                    const res = await fetch(`/comentario/organizador/${encodeURIComponent(usuario)}`);
+                    if (!res.ok) {
+                        throw new Error("Error al recuperar notificaciones");
+                    }
+
+                    const notifs = await res.json();
+                    window.kalendasNotificaciones = notifs;
+
+                    // Actualizar icono y badge
+                    if (notifs.length > 0) {
+                        bellIcon.classList.add("has-notifications");
+                        if (badge) {
+                            badge.style.display = "inline-block";
+                            badge.textContent = notifs.length;
+                        }
+                    } else {
+                        bellIcon.classList.remove("has-notifications");
+                        if (badge) {
+                            badge.style.display = "none";
+                        }
+                    }
+
+                    // Rellenar el panel
+                    panel.innerHTML = "";
+                    if (notifs.length === 0) {
+                        const p = document.createElement("p");
+                        p.className = "notif-empty";
+                        p.textContent = "No tienes notificaciones";
+                        panel.appendChild(p);
+                    } else {
+                        notifs.forEach(n => {
+                            const item = document.createElement("div");
+                            item.className = "notif-item d-flex justify-content-between align-items-center gap-2";
+
+                            const textoSpan = document.createElement("span");
+
+                            const usuarioNotif = n.usuario || "Alguien";
+                            // ✅ Usamos el nombre del evento si viene del backend, y si no, caemos al id “tal cual”
+                            const eventoNotif = n.nombreEvento || (n.evento || "");
+
+                            const calif = (n.calificacion !== null && n.calificacion !== undefined)
+                                ? n.calificacion
+                                : "-";
+
+                            textoSpan.textContent =
+                                `${usuarioNotif} ha escrito un nuevo comentario en el evento ${eventoNotif} ` +
+                                `con una calificación de ${calif}.`;
+
+                            const btn = document.createElement("button");
+                            btn.type = "button";
+                            btn.className = "btn btn-sm btn-outline-secondary";
+                            btn.textContent = "Leído";
+
+                            btn.addEventListener("click", async function (e) {
+                                e.stopPropagation();
+                                const comentarioId = extraerIdComentario(n);
+                                if (!comentarioId) {
+                                    console.error("No se pudo extraer el id del comentario", n);
+                                    return;
+                                }
+                        await marcarNotificacionLeida(comentarioId);
+                            });
+
+                            item.appendChild(textoSpan);
+                            item.appendChild(btn);
+                            panel.appendChild(item);
+                        });
+                    }
+                } catch (err) {
+                    console.error(err);
+                }
+            }
+            function extraerIdComentario(n) {
+                // Intentamos varias formas: id, _id, _id.$oid
+                if (n.id) {
+                    return n.id;
+                }
+                if (n._id) {
+                    if (typeof n._id === "string") {
+                        return n._id;
+                    }
+                    if (typeof n._id === "object" && n._id.$oid) {
+                        return n._id.$oid;
+                    }
+                }
+                return null;
+            }
+
+            async function marcarNotificacionLeida(comentarioId) {
+                try {
+                    const res = await fetch(`/comentario/${encodeURIComponent(comentarioId)}`, {
+                        method: "PUT",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            notificacion: false
+                        })
+                    });
+
+                    if (!res.ok) {
+                        throw new Error("Error al marcar como leído");
+                    }
+
+                    // Volver a cargar notificaciones
+                    await cargarNotificaciones();
+                } catch (err) {
+                    console.error(err);
+                }
+            }
+
+            const bell = document.getElementById("notif-bell");
+            const panel = document.getElementById("notif-panel");
+
+            if (bell && panel) {
+                bell.addEventListener("click", function (e) {
+                    e.preventDefault();
+                    panel.classList.toggle("notif-panel-visible");
+                });
+
+                // Cerrar al hacer click fuera
+                document.addEventListener("click", function (e) {
+                    if (!panel.contains(e.target) && !bell.contains(e.target)) {
+                        panel.classList.remove("notif-panel-visible");
+                    }
+                });
+            }
+
+            // Cargar notificaciones al entrar en la página
+            cargarNotificaciones();
+        });
+    </script>
+</body>
+
+</html>

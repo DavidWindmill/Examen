@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+beanie
+motor
+pydantic
+pymongo[srv]
+httpx
+jinja2
+python-multipart
+dropbox
+requests

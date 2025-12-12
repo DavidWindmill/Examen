@@ -1,0 +1,964 @@
+{% extends "base.html" %}
+
+{% block content %}
+<link rel="stylesheet" href="/static/css/evento.css">
+
+<div class="container mt-4 evento-page">
+
+  <!-- CABECERA + INFO PRINCIPAL -->
+  <div class="row mb-4">
+    <div class="col-lg-8 order-1 order-lg-2">
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body">
+          <h1 class="h3 mb-2">{{ evento.titulo }}</h1>
+          <p class="text-muted mb-3">
+            {{ evento.descripcion if evento.descripcion else "Sin descripcion" }}
+          </p>
+
+          <div class="row g-3 small">
+            <div class="col-md-4">
+              <div class="info-pill">
+                <div class="info-label">Lugar</div>
+                <div class="info-value">
+                  {{ evento.lugar if evento.lugar else "No especificado" }}
+                </div>
+              </div>
+            </div>
+
+            <div class="col-md-4">
+              <div class="info-pill">
+                <div class="info-label">Organizador</div>
+                <div class="info-value">
+                  {{ evento.organizador if evento.organizador else "No especificado" }}
+                </div>
+              </div>
+            </div>
+
+            <div class="col-md-4">
+              <div class="info-pill">
+                <div class="info-label">Inicio</div>
+                <div class="info-value">
+                  {{ evento.hora_comienzo }}
+                </div>
+              </div>
+            </div>
+
+            <div class="col-md-4">
+              <div class="info-pill">
+                <div class="info-label">Fin</div>
+                <div class="info-value">
+                  {{ evento.hora_fin }}
+                </div>
+              </div>
+            </div>
+
+            <div class="col-md-4 d-flex align-items-end gap-2 justify-content-md-end">
+              <button class="btn btn-outline-primary w-100 w-md-auto" onclick="abrirModalActualizar()">
+                Actualizar evento
+              </button>
+              <button class="btn btn-outline-danger w-100 w-md-auto" onclick="confirmarEliminarEvento()">
+                Eliminar evento
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- COMENTARIOS -->
+      <div class="card border-0 shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span>Comentarios</span>
+          <button class="btn btn-sm btn-primary" onclick="abrirModalCrear()">
+            + Nuevo comentario
+          </button>
+        </div>
+
+        <div class="card-body comments-section">
+
+          {% if comentarios and comentarios|length > 0 %}
+            <div class="d-flex flex-column gap-3">
+
+              {% for c in comentarios %}
+              <div class="comment-card d-flex justify-content-between align-items-start">
+
+                <div class="comment-content flex-grow-1 me-3">
+                  <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="fw-semibold">
+                      {{ c.usuario if c.usuario else "Anonimo" }}
+                    </span>
+
+                    {% if c.calificacion is not none %}
+                    <span class="badge bg-warning text-dark">
+                      Nota {{ c.calificacion }}/10
+                    </span>
+                    {% endif %}
+                  </div>
+
+                  <p class="mb-0">
+                    {{ c.texto if c.texto else "" }}
+                  </p>
+                </div>
+
+                <div class="comment-actions d-flex flex-column gap-2">
+                  <button class="btn btn-sm btn-outline-secondary"
+                          onclick="abrirModalEditar('{{ c._id }}', '{{ c.usuario | default('Anonimo') | e }}', '{{ c.texto | default('') | e }}', '{{ c.calificacion if c.calificacion is not none else '' }}')">
+                    Editar
+                  </button>
+                  <button class="btn btn-sm btn-outline-danger"
+                          onclick="abrirModalBorrar('{{ c._id }}')">
+                    Borrar
+                  </button>
+                </div>
+
+              </div>
+              {% endfor %}
+
+            </div>
+          {% else %}
+            <p class="text-muted mb-0">
+              Aun no hay comentarios para este evento.
+            </p>
+          {% endif %}
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- COLUMNA GALERIA -->
+    <div class="col-lg-4 mt-4 mt-lg-0 order-2 order-lg-1">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span>Galeria de imagenes</span>
+          <button class="btn btn-sm btn-primary"
+                  onclick="document.getElementById('image-upload').click()">
+            Subir
+          </button>
+        </div>
+
+        <div class="card-body">
+          <!-- input oculto -->
+          <input type="file" id="image-upload" accept="image/*" style="display: none;">
+
+          <div id="galeria-imagenes" class="image-gallery">
+            <!-- Imagenes dinamicas -->
+          </div>
+
+          <div id="upload-status" class="mt-2 small"></div>
+        </div>
+      </div>
+
+      <div class="card border-0 shadow-sm mt-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span>Mapa (OpenStreetMap)</span>
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-primary" id="btn-add-map" type="button">
+              Añadir mapa
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" id="btn-add-coords" type="button">
+              Seleccionar coordenadas
+            </button>
+            <button class="btn btn-sm btn-outline-danger d-none" id="btn-remove-map" type="button">
+              Eliminar mapa
+            </button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="map-container" class="map-container">
+            <div id="map"></div>
+          </div>
+          <div id="map-status" class="text-muted small mt-2">Sin mapa asignado</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Datos evento para JS -->
+<div id="evento-data"
+     data-id="{{ evento._id }}"
+     data-lugar="{{ evento.lugar or '' }}"
+     data-organizador="{{ evento.organizador or '' }}"
+     data-titulo="{{ evento.titulo or '' }}"
+     data-descripcion="{{ evento.descripcion or '' }}"
+     data-inicio="{{ evento.hora_comienzo or '' }}"
+     data-fin="{{ evento.hora_fin or '' }}"
+     data-lat="{{ evento.lat if evento.lat is not none else '' }}"
+     data-lon="{{ evento.lon if evento.lon is not none else '' }}"
+     style="display:none;"></div>
+
+<!-- Modal actualizar evento -->
+<div id="modal-actualizar-evento" class="update-modal-backdrop d-none" role="dialog" aria-modal="true">
+  <div class="update-modal">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="mb-0">Actualizar evento</h5>
+      <button type="button" class="btn-close" aria-label="Cerrar" onclick="cerrarModalActualizar()"></button>
+    </div>
+
+    <form id="form-actualizar-evento">
+      <div class="mb-3">
+        <label class="form-label" for="update-titulo">Título</label>
+        <input type="text" class="form-control" id="update-titulo" name="titulo" required>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label" for="update-lugar">Lugar</label>
+        <input type="text" class="form-control" id="update-lugar" name="lugar">
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label" for="update-inicio">Inicio</label>
+        <input type="datetime-local" class="form-control" id="update-inicio" name="hora_comienzo">
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label" for="update-fin">Fin</label>
+        <input type="datetime-local" class="form-control" id="update-fin" name="hora_fin">
+      </div>
+
+      <div class="d-flex justify-content-end gap-2">
+        <button type="button" class="btn btn-secondary" onclick="cerrarModalActualizar()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Confirmar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Comentario -->
+<div id="modal-comentario" class="update-modal-backdrop d-none" role="dialog" aria-modal="true">
+  <div class="update-modal">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 id="modal-comentario-titulo" class="mb-0">Crear comentario</h5>
+      <button type="button" class="btn-close" aria-label="Cerrar" onclick="cerrarModalComentario()"></button>
+    </div>
+    <form id="form-comentario">
+      <input type="hidden" id="comentario-id">
+      <div class="mb-3">
+        <label class="form-label" for="comentario-usuario">Usuario</label>
+        <input type="text" class="form-control" id="comentario-usuario" placeholder="Nombre de usuario">
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="comentario-texto">Comentario</label>
+        <textarea class="form-control" id="comentario-texto" rows="3" placeholder="Escribe tu comentario" required></textarea>
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="comentario-calificacion">Calificación (0-10)</label>
+        <input type="number" class="form-control" id="comentario-calificacion" min="0" max="10" step="0.1" placeholder="Ej: 7">
+      </div>
+      <div class="d-flex justify-content-end gap-2">
+        <button type="button" class="btn btn-secondary" onclick="cerrarModalComentario()">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="btn-guardar-comentario">Crear comentario</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  const dataEl = document.getElementById("evento-data");
+  const eventoData = {
+    id: dataEl.dataset.id,
+    lugar: dataEl.dataset.lugar,
+    organizador: dataEl.dataset.organizador,
+    titulo: dataEl.dataset.titulo,
+    descripcion: dataEl.dataset.descripcion,
+    hora_comienzo: dataEl.dataset.inicio,
+    hora_fin: dataEl.dataset.fin,
+    lat: dataEl.dataset.lat,
+    lon: dataEl.dataset.lon
+  };
+
+  const emailHeaderInput = document.getElementById("notif-email");
+
+    function getCorreoCabecera() {
+        if (!emailHeaderInput) return "";
+        return (emailHeaderInput.value || "").trim();
+    }
+
+  function formatearFechaLocal(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  function abrirModalActualizar() {
+    document.getElementById("update-titulo").value = eventoData.titulo || "";
+    document.getElementById("update-lugar").value = eventoData.lugar || "";
+    document.getElementById("update-inicio").value = formatearFechaLocal(eventoData.hora_comienzo);
+    document.getElementById("update-fin").value = formatearFechaLocal(eventoData.hora_fin);
+    const modal = document.getElementById("modal-actualizar-evento");
+    modal.classList.remove("d-none");
+    modal.classList.add("show");
+  }
+
+  function cerrarModalActualizar() {
+    const modal = document.getElementById("modal-actualizar-evento");
+    modal.classList.add("d-none");
+    modal.classList.remove("show");
+  }
+
+  document.getElementById("form-actualizar-evento").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const tituloVal = document.getElementById("update-titulo").value;
+    const lugarVal = document.getElementById("update-lugar").value;
+    const inicioVal = document.getElementById("update-inicio").value;
+    const finVal = document.getElementById("update-fin").value;
+
+    const payload = {
+      titulo: tituloVal || eventoData.titulo,
+      descripcion: eventoData.descripcion,
+      lugar: lugarVal || eventoData.lugar,
+      hora_comienzo: inicioVal || eventoData.hora_comienzo,
+      hora_fin: finVal || eventoData.hora_fin
+    };
+
+    try {
+      const res = await fetch(`/evento/${eventoData.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        alert("Evento actualizado");
+        window.location.reload();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.detail || "Error al actualizar el evento");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error al actualizar el evento");
+    }
+  });
+
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") {
+      cerrarModalActualizar();
+    }
+  });
+
+  // ------------------------------------------------------- //
+  //                Comentarios (crear/editar/borrar)        //
+  // ------------------------------------------------------- //
+  function parseCalificacion(valor) {
+    if (valor === null || valor === undefined || valor === "") return null;
+    const num = parseFloat(valor);
+    if (Number.isNaN(num)) return null;
+    return Math.max(0, Math.min(10, num));
+  }
+
+  function abrirModalCrear() {
+    const usuario = prompt("Nombre de usuario (opcional):", "");
+    const texto = prompt("Escribe tu comentario:");
+    if (!texto || !texto.trim()) return;
+    const calificacion = parseCalificacion(prompt("Calificacion (0-10, opcional):", ""));
+
+    const payload = {
+    evento: eventoData.id,
+    usuario: usuario && usuario.trim() ? usuario.trim() : "Anonimo",
+    texto: texto.trim(),
+    calificacion: calificacion,
+    // notificacion = lo contrario al switch "Enviar por correo"
+    notificacion: !window.notificacionActiva,
+    correo: getCorreoCabecera(),
+    nombreEvento: eventoData.titulo
+    };
+
+    fetch("/comentarios", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }).then(async (res) => {
+      if (res.ok) {
+        window.location.reload();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.detail || "Error al crear comentario");
+      }
+    }).catch((err) => {
+      console.error(err);
+      alert("Error al crear comentario");
+    });
+  }
+
+  async function abrirModalEditar(id, usuarioActual, textoActual, calActual) {
+    try {
+      const nuevoTexto = prompt("Editar comentario:", textoActual || "");
+      if (nuevoTexto === null) return;
+      const nuevaCal = parseCalificacion(prompt("Calificacion (0-10, opcional):", calActual || ""));
+
+      const payload = { texto: nuevoTexto.trim(), calificacion: nuevaCal, usuario: usuarioActual || "Anonimo" };
+
+      const updateRes = await fetch(`/comentarios/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (updateRes.ok) {
+        window.location.reload();
+      } else {
+        const err = await updateRes.json().catch(() => ({}));
+        alert(err.detail || "Error al actualizar comentario");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error al actualizar comentario");
+    }
+  }
+
+  function abrirModalBorrar(id) {
+    if (!confirm("¿Seguro que deseas eliminar este comentario?")) return;
+    fetch(`/comentarios/${id}`, { method: "DELETE" })
+      .then(async (res) => {
+        if (res.ok) {
+          window.location.reload();
+        } else {
+          const err = await res.json().catch(() => ({}));
+          alert(err.detail || "Error al eliminar comentario");
+        }
+      })
+      .catch((err) => {
+        console.error(err);
+        alert("Error al eliminar comentario");
+      });
+  }
+
+  // ------------------------------------------------------- //
+  //                Comentarios (crear/editar/borrar)        //
+  // ------------------------------------------------------- //
+  const modalComentario = document.getElementById("modal-comentario");
+  const formComentario = document.getElementById("form-comentario");
+  const tituloComentario = document.getElementById("modal-comentario-titulo");
+  const btnGuardarComentario = document.getElementById("btn-guardar-comentario");
+
+  function parseCalificacion(valor) {
+    if (valor === null || valor === undefined || valor === "") return null;
+    const num = parseFloat(valor);
+    if (Number.isNaN(num)) return null;
+    return Math.max(0, Math.min(10, num));
+  }
+
+  function abrirModalCrear() {
+    tituloComentario.textContent = "Crear comentario";
+    btnGuardarComentario.textContent = "Crear comentario";
+    document.getElementById("comentario-id").value = "";
+    document.getElementById("comentario-usuario").value = "";
+    document.getElementById("comentario-texto").value = "";
+    document.getElementById("comentario-calificacion").value = "";
+    modalComentario.classList.remove("d-none");
+    modalComentario.classList.add("show");
+  }
+
+  async function abrirModalEditar(id) {
+    try {
+      const res = await fetch(`/api_comentarios/v1/comentarios/${id}`);
+      const data = res.ok ? await res.json() : null;
+      if (!data) throw new Error("No se pudo cargar el comentario");
+
+      tituloComentario.textContent = "Editar comentario";
+      btnGuardarComentario.textContent = "Guardar cambios";
+      document.getElementById("comentario-id").value = id;
+      document.getElementById("comentario-usuario").value = data.usuario || "";
+      document.getElementById("comentario-texto").value = data.texto || "";
+      document.getElementById("comentario-calificacion").value = data.calificacion ?? "";
+
+      modalComentario.classList.remove("d-none");
+      modalComentario.classList.add("show");
+    } catch (err) {
+      console.error(err);
+      alert("Error al cargar el comentario");
+    }
+  }
+
+  function cerrarModalComentario() {
+    modalComentario.classList.add("d-none");
+    modalComentario.classList.remove("show");
+  }
+
+  formComentario.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const id = document.getElementById("comentario-id").value;
+    const usuario = document.getElementById("comentario-usuario").value.trim() || "Anonimo";
+    const texto = document.getElementById("comentario-texto").value.trim();
+    const calificacion = parseCalificacion(document.getElementById("comentario-calificacion").value);
+
+    if (!texto) {
+      alert("El comentario no puede estar vacío");
+      return;
+    }
+
+    const payload = {
+      usuario,
+      texto,
+      calificacion
+    };
+
+    let url = "";
+    let method = "";
+    if (id) {
+      url = `/comentarios/${id}`;
+      method = "PUT";
+    } else {
+      url = "/comentarios";
+      method = "POST";
+      payload.evento = eventoData.id;
+      // lo contrario al switch "Enviar por correo"
+      payload.notificacion = !window.notificacionActiva;
+      payload.correo = getCorreoCabecera();
+      payload.nombreEvento = eventoData.titulo || "";
+    }
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        window.location.reload();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.detail || "Error al guardar comentario");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error al guardar comentario");
+    }
+  });
+
+  function abrirModalBorrar(id) {
+    if (!confirm("¿Seguro que deseas eliminar este comentario?")) return;
+    fetch(`/comentarios/${id}`, { method: "DELETE" })
+      .then(async (res) => {
+        if (res.ok) {
+          window.location.reload();
+        } else {
+          const err = await res.json().catch(() => ({}));
+          alert(err.detail || "Error al eliminar comentario");
+        }
+      })
+      .catch((err) => {
+        console.error(err);
+        alert("Error al eliminar comentario");
+      });
+  }
+
+  async function confirmarEliminarEvento() {
+    const seguro = confirm("¿Seguro que desea eliminar evento?");
+    if (!seguro) return;
+
+    try {
+      const res = await fetch(`/evento/${eventoData.id}`, { method: "DELETE" });
+      if (res.ok) {
+        alert("Evento eliminado");
+        window.location.href = "/calendarios";
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.detail || "Error al eliminar el evento");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error al eliminar el evento");
+    }
+  }
+
+  // ------------------------------------------------------- //
+  //                 Galeria de imagenes                     //
+  // ------------------------------------------------------- //
+  const uploadInput = document.getElementById("image-upload");
+  const galeria = document.getElementById("galeria-imagenes");
+  const uploadStatus = document.getElementById("upload-status");
+  let imagenes = [];
+  let indice = 0;
+
+  function renderCarrusel() {
+    galeria.innerHTML = "";
+    if (!imagenes.length) {
+      galeria.innerHTML = '<p class="text-muted mb-0 small">Aun no hay imagenes</p>';
+      return;
+    }
+
+    const contenedor = document.createElement("div");
+    contenedor.className = "mini-carousel";
+
+    const img = document.createElement("img");
+    img.src = imagenes[indice].url;
+    img.alt = imagenes[indice].nombre || "Imagen del evento";
+    contenedor.appendChild(img);
+
+    const controls = document.createElement("div");
+    controls.className = "mini-carousel-controls";
+
+    const prevBtn = document.createElement("button");
+    prevBtn.type = "button";
+    prevBtn.className = "btn btn-sm btn-outline-secondary";
+    prevBtn.textContent = "<";
+    prevBtn.onclick = () => {
+      indice = (indice - 1 + imagenes.length) % imagenes.length;
+      renderCarrusel();
+    };
+
+    const nextBtn = document.createElement("button");
+    nextBtn.type = "button";
+    nextBtn.className = "btn btn-sm btn-outline-secondary";
+    nextBtn.textContent = ">";
+    nextBtn.onclick = () => {
+      indice = (indice + 1) % imagenes.length;
+      renderCarrusel();
+    };
+
+    const counter = document.createElement("span");
+    counter.className = "mini-carousel-counter";
+    counter.textContent = `${indice + 1}/${imagenes.length}`;
+
+    controls.append(prevBtn, counter, nextBtn);
+    contenedor.appendChild(controls);
+
+    galeria.appendChild(contenedor);
+  }
+
+  async function cargarImagenes() {
+    try {
+      const res = await fetch(`/evento/${eventoData.id}/imagenes`);
+      const data = await res.json();
+      if (data && data.success && Array.isArray(data.imagenes)) {
+        imagenes = data.imagenes;
+        indice = 0;
+        renderCarrusel();
+      } else {
+        galeria.innerHTML = '<p class="text-muted mb-0 small">No se pudieron cargar imagenes</p>';
+      }
+    } catch (err) {
+      console.error(err);
+      galeria.innerHTML = '<p class="text-muted mb-0 small">Error al cargar imagenes</p>';
+    }
+  }
+
+  uploadInput.addEventListener("change", async (e) => {
+    if (!e.target.files || !e.target.files[0]) return;
+    const archivo = e.target.files[0];
+    const formData = new FormData();
+    formData.append("file", archivo);
+    uploadStatus.textContent = "Subiendo...";
+
+    try {
+      const res = await fetch(`/evento/${eventoData.id}/upload-image`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        uploadStatus.textContent = "Imagen subida";
+        await cargarImagenes();
+      } else {
+        uploadStatus.textContent = data.detail || "Error al subir la imagen";
+      }
+    } catch (err) {
+      console.error(err);
+      uploadStatus.textContent = "Error al subir la imagen";
+    } finally {
+      uploadInput.value = "";
+      setTimeout(() => uploadStatus.textContent = "", 2000);
+    }
+  });
+
+  // cargar imagenes al entrar
+  cargarImagenes();
+
+  // ------------------------------------------------------- //
+  //                       Mapa OSM                          //
+  // ------------------------------------------------------- //
+  let mapInstance = null;
+  let mapMarker = null;
+  let selectionMarker = null;
+  let seleccionActiva = false;
+  const btnAddMap = document.getElementById("btn-add-map");
+  const btnRemoveMap = document.getElementById("btn-remove-map");
+  const btnAddCoords = document.getElementById("btn-add-coords");
+  const mapContainer = document.getElementById("map-container");
+  const mapStatus = document.getElementById("map-status");
+
+  function setMapButtons(hasMap) {
+    if (hasMap) {
+      btnAddMap.classList.add("d-none");
+      btnRemoveMap.classList.remove("d-none");
+    } else {
+      btnAddMap.classList.remove("d-none");
+      btnRemoveMap.classList.add("d-none");
+    }
+  }
+
+  function showMapMessage(msg) {
+    if (mapStatus) {
+      mapStatus.textContent = msg;
+    }
+  }
+
+  function ensureMapElement() {
+    let mapEl = document.getElementById("map");
+    if (!mapEl) {
+      const div = document.createElement("div");
+      div.id = "map";
+      mapContainer.innerHTML = "";
+      mapContainer.appendChild(div);
+      mapEl = div;
+    }
+    return mapEl;
+  }
+
+  function initMap(lat, lon) {
+    const mapEl = ensureMapElement();
+
+    if (mapInstance) {
+      mapInstance.setView([lat, lon], 15);
+      if (mapMarker) {
+        mapMarker.setLatLng([lat, lon]);
+      } else {
+        mapMarker = L.marker([lat, lon]).addTo(mapInstance);
+      }
+      return;
+    }
+
+    mapInstance = L.map(mapEl).setView([lat, lon], 15);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(mapInstance);
+    mapMarker = L.marker([lat, lon]).addTo(mapInstance);
+  }
+
+  async function geocodificarLugar(lugar) {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(lugar)}&format=json&limit=1`;
+    const res = await fetch(url, { headers: { "Accept-Language": "es" } });
+    if (!res.ok) throw new Error("No se pudo geocodificar el lugar");
+    const data = await res.json();
+    if (!data || !data.length) throw new Error("No se encontraron coordenadas para el lugar");
+    return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+  }
+
+  async function guardarCoordenadas(lat, lon) {
+    const payload = { lat, lon };
+    const res = await fetch(`/evento/${eventoData.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "No se pudieron guardar las coordenadas");
+    }
+    eventoData.lat = String(lat);
+    eventoData.lon = String(lon);
+  }
+
+  async function agregarMapa() {
+    const lugar = eventoData.lugar || "";
+    if (!lugar.trim()) {
+      showMapMessage("No hay lugar especificado para geocodificar.");
+      return;
+    }
+    showMapMessage("Buscando coordenadas...");
+    try {
+      const { lat, lon } = await geocodificarLugar(lugar);
+      await guardarCoordenadas(lat, lon);
+      initMap(lat, lon);
+      setMapButtons(true);
+      showMapMessage("Mapa asignado");
+    } catch (err) {
+      console.error(err);
+      showMapMessage(err.message || "No se pudo obtener el mapa.");
+    }
+  }
+
+  async function eliminarMapa() {
+    const seguro = confirm("¿Seguro que desea eliminar el mapa?");
+    if (!seguro) return;
+    try {
+      const res = await fetch(`/evento/${eventoData.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lat: null, lon: null })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || "No se pudo eliminar el mapa");
+      }
+    } catch (err) {
+      console.error(err);
+      showMapMessage(err.message || "Error al eliminar el mapa");
+      return;
+    }
+
+    eventoData.lat = "";
+    eventoData.lon = "";
+    if (mapInstance) {
+      mapInstance.remove();
+      mapInstance = null;
+      mapMarker = null;
+    }
+    showMapMessage("Sin mapa asignado");
+    setMapButtons(false);
+  }
+
+  function activarSeleccionCoordenadas() {
+    if (!mapInstance) {
+      const lat = eventoData.lat ? parseFloat(eventoData.lat) : 40.4168;
+      const lon = eventoData.lon ? parseFloat(eventoData.lon) : -3.7038;
+      initMap(lat, lon);
+    }
+    seleccionActiva = true;
+    showMapMessage("Haz clic en el mapa para fijar coordenadas, luego confirma.");
+
+    if (!selectionMarker) {
+      selectionMarker = L.marker(mapInstance.getCenter(), { draggable: true }).addTo(mapInstance);
+    }
+
+    mapInstance.off("click");
+    mapInstance.on("click", (e) => {
+      if (!selectionMarker) {
+        selectionMarker = L.marker(e.latlng, { draggable: true }).addTo(mapInstance);
+      } else {
+        selectionMarker.setLatLng(e.latlng);
+      }
+    });
+
+    if (!document.getElementById("btn-confirm-coords")) {
+      const btn = document.createElement("button");
+      btn.id = "btn-confirm-coords";
+      btn.type = "button";
+      btn.className = "btn btn-sm btn-primary mt-2";
+      btn.textContent = "Confirmar coordenadas";
+      btn.onclick = async () => {
+        const { lat, lng } = selectionMarker.getLatLng();
+        try {
+          await guardarCoordenadas(lat, lng);
+          initMap(lat, lng);
+          setMapButtons(true);
+          showMapMessage("Mapa actualizado");
+          seleccionActiva = false;
+          btn.remove();
+          if (selectionMarker) {
+            selectionMarker.remove();
+            selectionMarker = null;
+          }
+        } catch (err) {
+          console.error(err);
+          showMapMessage(err.message || "No se pudieron guardar las coordenadas");
+        }
+      };
+      const wrapper = document.createElement("div");
+      wrapper.className = "mt-2";
+      wrapper.appendChild(btn);
+      mapContainer.parentElement.appendChild(wrapper);
+    }
+  }
+
+  btnAddMap.addEventListener("click", agregarMapa);
+  document.getElementById("btn-add-coords").addEventListener("click", activarSeleccionCoordenadas);
+  btnRemoveMap.addEventListener("click", eliminarMapa);
+
+  async function cargarMapaInicial() {
+    try {
+      const res = await fetch(`/api_eventos/v1/evento/${eventoData.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.lat !== undefined && data.lon !== undefined && data.lat !== null && data.lon !== null) {
+          eventoData.lat = data.lat;
+          eventoData.lon = data.lon;
+        }
+      }
+    } catch (err) {
+      console.error("No se pudieron cargar coordenadas desde backend", err);
+    }
+
+    const latNum = parseFloat(eventoData.lat);
+    const lonNum = parseFloat(eventoData.lon);
+    if (Number.isFinite(latNum) && Number.isFinite(lonNum)) {
+      initMap(latNum, lonNum);
+      setMapButtons(true);
+      showMapMessage("Mapa asignado");
+    } else {
+      setMapButtons(false);
+      showMapMessage("Sin mapa asignado");
+    }
+  }
+
+  cargarMapaInicial();
+</script>
+
+<style>
+  .update-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 1050;
+  }
+
+  .update-modal-backdrop.d-none {
+    display: none;
+  }
+
+  .update-modal {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+  }
+
+  .mini-carousel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .mini-carousel img {
+    max-width: 100%;
+    max-height: 180px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid #e5e5e5;
+  }
+
+  .mini-carousel-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .mini-carousel-counter {
+    font-size: 12px;
+    color: #666;
+  }
+
+  .map-container {
+    width: 100%;
+    height: 240px;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #f8f9fa;
+  }
+
+  #map {
+    width: 100%;
+    height: 100%;
+  }
+</style>
+
+<!-- Leaflet CDN -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+{% endblock %}

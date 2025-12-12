@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+beanie
+motor
+pydantic
+pymongo[srv]
+httpx
