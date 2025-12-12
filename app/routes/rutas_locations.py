@@ -18,6 +18,17 @@ from app.services.dropbox_service import (
 router = APIRouter(prefix="/api", tags=["locations"])
 
 
+@router.get("/locations")
+async def list_locations(user: dict = Depends(current_user)):
+    """Devuelve los marcadores del usuario autenticado."""
+    email = (user or {}).get("email")
+    if not email:
+        raise HTTPException(status_code=401, detail="No autorizado (token sin email)")
+
+    # Solo los marcadores de ese usuario
+    return await Location.find(Location.email == email).to_list()
+
+
 @router.post("/locations")
 async def create_location(
     place: str = Form(...),
