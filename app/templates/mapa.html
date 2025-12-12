@@ -137,9 +137,12 @@
         bounds.push([loc.lat, loc.lon]);
         const m = L.marker([loc.lat, loc.lon]).addTo(markersLayer);
 
-        const imgHtml = loc.image_url
+        // ✅ Normaliza la URL para Dropbox (si aplica)
+        const imageUrl = normalizeDropboxUrl(loc.image_url);
+
+        const imgHtml = imageUrl
           ? `<br/>
-            <img src="${escapeHtml(loc.image_url)}"
+            <img src="${escapeHtml(imageUrl)}"
                   style="width:180px;max-width:100%;border-radius:12px;margin-top:8px;" />`
           : "";
 
@@ -184,7 +187,8 @@
         .filter(l => l.image_url)
         .forEach(l => {
           const img = document.createElement("img");
-          img.src = l.image_url;
+          // ✅ Normaliza también en la galería
+          img.src = normalizeDropboxUrl(l.image_url);
           img.alt = l.name;
           img.style.height = "110px";
           img.style.borderRadius = "12px";
@@ -216,7 +220,6 @@
       return body;
     }
 
-
     function escapeHtml(str) {
       return String(str)
         .replaceAll("&", "&amp;")
@@ -224,6 +227,16 @@
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
+    }
+
+    // ✅ Convierte URLs de Dropbox tipo "www.dropbox.com/...?...&dl=0" a enlace directo
+    function normalizeDropboxUrl(url) {
+      if (!url) return url;
+
+      return url
+        .replace("www.dropbox.com", "dl.dropboxusercontent.com")
+        .replace("?dl=0", "")
+        .replace("&dl=0", "");
     }
 
     async function renderUser(user) {
@@ -304,7 +317,6 @@
           alert(e?.message || String(e));
         }
       });
-
 
       onAuthStateChanged(auth, renderUser);
     });
